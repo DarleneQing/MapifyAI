@@ -1,7 +1,7 @@
 # IntelligentLocalBid Controller – 前端对齐文档
 
 > 角色定位：本文件从 **前端视角** 描述各个页面/功能会调用哪些 Controller 接口、请求参数与响应结构（含 SSE 事件），帮助你（Controller 负责人）和前端同学对齐联调契约。  
-> 参考文档：`api-intelligent-local-bid.md`、`PRD_IntelligentLocalBid.md`、`backend/controller-service-contract.md`。
+> 参考文档：`api-intelligent-local-bid.md`、`PRD_IntelligentLocalBid.md`、`doc/controller-service-contract.md`。
 
 ---
 
