@@ -531,3 +531,252 @@
 
 这份文档可以直接分享给前端同学，用作联调时的“接口合同”。如后续 API 有调整，可以在这里同步更新，保持 Controller 与前端对齐。
 
+---
+
+## 10. TypeScript 类型契约（与后端实体对齐）
+
+> 说明：本小节给出前端可直接复用的 TypeScript 类型定义，字段命名与后端 `pydantic` 模型（见 `backend/app/models/schemas.py` 等）保持一致，用于保证数据通信的一致性。可在前端项目中单独建立 `contracts/intelligent-local-bid.ts` 并复制以下内容。
+
+```ts
+// 基础 Geo 坐标，与 schemas.LatLng 对齐
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+// 用户偏好权重，与 schemas.UserPreferences 对齐
+export interface UserPreferences {
+  weight_price: number;
+  weight_distance: number;
+  weight_rating: number;
+}
+
+// 创建搜索请求 payload，与 schemas.CreateRequestPayload 对齐
+export interface CreateRequestPayload {
+  raw_input: string;
+  location: LatLng;
+  preferences?: UserPreferences | null;
+  // 控制是否使用 SSE 流式返回，Controller 层扩展字段
+  stream?: boolean;
+  // 语言（如 "zh-CN" / "en-US"），与文档示例保持一致
+  language?: string;
+}
+
+// 后端内部的结构化请求，与 schemas.StructuredRequest 对齐
+export interface StructuredRequest {
+  id: string;
+  raw_input: string;
+  category: string; // 例如 "haircut" | "massage"
+  requested_time: string; // ISO datetime
+  location: LatLng;
+  radius_km: number;
+  constraints: Record<string, unknown>;
+  status: string; // "pending" | "open" | "closed"
+  created_at: string | null; // ISO datetime
+}
+
+// 列表 / 地图使用的聚合结果，来自本文件 3. PlaceSummary 约定
+export interface PlaceSummary {
+  place_id: string;
+  name: string;
+  address: string;
+  distance_km: number;
+  price_level: "low" | "medium" | "high" | string;
+  rating: number;
+  rating_count: number;
+  recommendation_score: number;
+  status: "open_now" | "closing_soon" | "closed" | string;
+  eta_minutes: number;
+  reason_tags: string[];
+}
+
+// 2.1 / 2.2 接口统一的返回体
+export interface RequestWithResults {
+  request: StructuredRequest;
+  results: PlaceSummary[];
+}
+
+// SSE 事件（2.1.2 / 2.3），前端可据此做类型收窄
+export type RequestSseEvent =
+  | {
+      type: "request_created";
+      request: StructuredRequest;
+    }
+  | {
+      type: "partial_results";
+      request_id: string;
+      results: PlaceSummary[];
+    }
+  | {
+      type: "completed";
+      request_id: string;
+      results: PlaceSummary[];
+    };
+
+// 详情页所需结构，来自 4.1 响应示例
+export interface OpeningHoursToday {
+  today_open: string;
+  today_close: string;
+  is_open_now: boolean;
+}
+
+export interface PlaceBasic {
+  place_id: string;
+  name: string;
+  address: string;
+  phone?: string | null;
+  website?: string | null;
+  location: LatLng;
+  rating: number;
+  rating_count: number;
+  price_level: "low" | "medium" | "high" | string;
+  status: "open_now" | "closing_soon" | "closed" | string;
+  opening_hours?: OpeningHoursToday | null;
+}
+
+export interface ReviewSummary {
+  positive_highlights: string[];
+  negative_highlights: string[];
+  star_reasons: Record<string, string[]>;
+}
+
+export type RatingDistribution = Record<"1" | "2" | "3" | "4" | "5" | string, number>;
+
+export interface PlaceDetail {
+  place: PlaceBasic;
+  review_summary: ReviewSummary;
+  rating_distribution: RatingDistribution;
+  recommendation_reasons: string[];
+}
+
+export interface PlaceDetailResponse {
+  request_id: string;
+  detail: PlaceDetail;
+}
+
+// 4.2 原始评论分页
+export interface PlaceReview {
+  author_name: string;
+  rating: number;
+  text: string;
+  time: string; // ISO datetime
+  language: string;
+}
+
+export interface PlaceReviewsPage {
+  place_id: string;
+  page: number;
+  page_size: number;
+  total: number;
+  reviews: PlaceReview[];
+}
+
+// 5. 个性化画像（与文档 & 未来 schemas.UserProfile 对齐）
+export interface UserProfileWeights {
+  price: number;
+  distance: number;
+  rating: number;
+  popularity: number;
+}
+
+export interface UserProfile {
+  user_id: string;
+  persona: string; // 如 "student_saver" / "family_with_kids"
+  budget_level: "low" | "medium" | "high" | string;
+  distance_preference: string; // 如 "nearby_first"
+  has_kids: boolean;
+  needs_wheelchair_access: boolean;
+  weights: UserProfileWeights;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ColdStartSurveyPayload {
+  budget_level: "low" | "medium" | "high" | string;
+  distance_preference: string;
+  priority: string;
+  persona: string;
+  has_kids: boolean;
+  needs_wheelchair_access: boolean;
+}
+
+export interface ProfileResponse {
+  profile: UserProfile;
+}
+
+// 6. Provider 竞价（与 Offer+Request 契约对齐）
+export interface OfferSlot {
+  from: string; // ISO datetime
+  to: string; // ISO datetime
+}
+
+export interface Offer {
+  id: string;
+  request_id: string;
+  provider_id: string;
+  price: number;
+  currency: string;
+  eta_minutes: number;
+  slot: OfferSlot;
+  status: string; // "pending" | "accepted" | ...
+}
+
+export interface OffersResponse {
+  request_id: string;
+  offers: Offer[];
+}
+
+export type OfferSseEvent =
+  | {
+      type: "offer_created";
+      offer: Offer;
+    }
+  | {
+      type: "offer_updated";
+      offer: Offer;
+    };
+
+// 7. Debug / Trace 面板（与 AgentTrace 对齐的简化前端视图）
+export interface TraceGraphNode {
+  id: string;
+  type: string;
+}
+
+export interface TraceGraphEdge {
+  from: string;
+  to: string;
+}
+
+export interface TraceStepView {
+  node_id: string;
+  status: string;
+  duration_ms: number;
+  input_summary: string;
+  output_summary: string;
+}
+
+export interface TraceResponse {
+  trace_id: string;
+  request_id: string;
+  graph: {
+    nodes: TraceGraphNode[];
+    edges: TraceGraphEdge[];
+  };
+  steps: TraceStepView[];
+  created_at: string;
+}
+
+// 8. 隐私说明接口
+export interface PrivacyPermission {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface PrivacyMeta {
+  permissions: PrivacyPermission[];
+  data_collected: string[];
+  data_not_collected: string[];
+}
+```
+
