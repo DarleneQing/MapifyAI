@@ -1,7 +1,7 @@
 """
 Review Summarizer service — Backend-3 owns this file. (US-10, Stretch)
 
-Uses Claude to summarise mock reviews into pros / cons / price range / recommended services.
+Uses OpenAI to summarise mock reviews into pros / cons / price range / recommended services.
 
 Expected output per provider:
   {
@@ -13,12 +13,12 @@ Expected output per provider:
 
 TODO:
   1. Build a prompt that includes the raw review texts
-  2. Call Claude API and parse structured JSON response
+  2. Call OpenAI API and parse structured JSON response
   3. Cache result in Supabase `provider_summaries` table so it's not re-generated every time
   4. If no real reviews, fall back to mock data from seed/zurich_providers.json
 """
-# import anthropic
-# from app.config import ANTHROPIC_API_KEY, DEFAULT_MODEL
+# from openai import OpenAI
+# from app.config import OPENAI_API_KEY, DEFAULT_MODEL
 # from app.models.db import get_db
 
 
@@ -26,8 +26,9 @@ def summarise_reviews(provider_id: str, reviews: list[dict]) -> dict:
     """
     TODO (Backend-3):
       prompt = build_prompt(reviews)
-      response = claude_client.messages.create(...)
-      return json.loads(response.content[0].text)
+      client = OpenAI(api_key=OPENAI_API_KEY)
+      response = client.chat.completions.create(model=DEFAULT_MODEL, ...)
+      return json.loads(response.choices[0].message.content)
     """
     # Mock fallback for demo
     return {

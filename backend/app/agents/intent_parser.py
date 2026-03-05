@@ -5,28 +5,36 @@ Input:  state["raw_input"], state["location"]
 Output: state["structured_request"]  (see StructuredRequest in schemas.py)
 
 TODO:
-  1. Call Claude with a system prompt that instructs it to return structured JSON
+  1. Call OpenAI with a system prompt that instructs it to return structured JSON
   2. Parse the JSON response into a StructuredRequest dict
   3. Handle edge cases: missing time → default to now+1h, missing radius → 5km
   4. Call add_step() to log the trace
 """
+import json
 import time
 import uuid
 from datetime import datetime
 
 from app.agents.state import PlannerState
 from app.agents.trace import add_step
-# from app.config import ANTHROPIC_API_KEY, DEFAULT_MODEL
-# import anthropic
+# from app.config import OPENAI_API_KEY, DEFAULT_MODEL
+# from openai import OpenAI
 
 
 def run(state: PlannerState) -> PlannerState:
     start = time.time() * 1000
 
-    # TODO: build prompt and call Claude API
-    # client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    # response = client.messages.create(...)
-    # parsed = json.loads(response.content[0].text)
+    # TODO: build prompt and call OpenAI API
+    # client = OpenAI(api_key=OPENAI_API_KEY)
+    # response = client.chat.completions.create(
+    #     model=DEFAULT_MODEL,
+    #     response_format={"type": "json_object"},  # guarantees JSON output
+    #     messages=[
+    #         {"role": "system", "content": SYSTEM_PROMPT},
+    #         {"role": "user", "content": state["raw_input"]},
+    #     ],
+    # )
+    # parsed = json.loads(response.choices[0].message.content)
 
     # Stub — replace with real LLM output
     parsed = {
