@@ -1,0 +1,107 @@
+[
+  {
+    "id": "p001",
+    "name": "Barber Studio Zürich",
+    "category": "haircut",
+    "location": { "lat": 47.3769, "lng": 8.5417 },
+    "address": "Langstrasse 12, 8004 Zürich",
+    "rating": 4.7,
+    "review_count": 142,
+    "price_range": "CHF 35–55",
+    "opening_hours": {
+      "mon": "09:00-19:00", "tue": "09:00-19:00", "wed": "09:00-19:00",
+      "thu": "09:00-20:00", "fri": "09:00-20:00", "sat": "09:00-17:00", "sun": null
+    },
+    "website_url": null,
+    "google_maps_url": "https://maps.google.com/?q=Langstrasse+12+Zurich",
+    "reviews": [
+      { "rating": 5, "text": "Best haircut I've had in years. Super precise and friendly." },
+      { "rating": 5, "text": "Always on time, great atmosphere." },
+      { "rating": 2, "text": "Had to wait 20 min even with an appointment." }
+    ]
+  },
+  {
+    "id": "p002",
+    "name": "Wellness Oasis",
+    "category": "massage",
+    "location": { "lat": 47.3810, "lng": 8.5350 },
+    "address": "Bahnhofstrasse 44, 8001 Zürich",
+    "rating": 4.9,
+    "review_count": 87,
+    "price_range": "CHF 80–130",
+    "opening_hours": {
+      "mon": "10:00-20:00", "tue": "10:00-20:00", "wed": "10:00-20:00",
+      "thu": "10:00-20:00", "fri": "10:00-20:00", "sat": "10:00-18:00", "sun": "11:00-16:00"
+    },
+    "website_url": null,
+    "google_maps_url": "https://maps.google.com/?q=Bahnhofstrasse+44+Zurich",
+    "reviews": [
+      { "rating": 5, "text": "Incredibly relaxing. The therapist was very professional." },
+      { "rating": 5, "text": "Best massage in Zurich. Will come back!" },
+      { "rating": 4, "text": "A bit pricey but worth it." }
+    ]
+  },
+  {
+    "id": "p003",
+    "name": "QuickFix Repairs",
+    "category": "repair",
+    "location": { "lat": 47.3720, "lng": 8.5480 },
+    "address": "Helvetiaplatz 3, 8004 Zürich",
+    "rating": 4.3,
+    "review_count": 56,
+    "price_range": "CHF 40–90",
+    "opening_hours": {
+      "mon": "08:00-18:00", "tue": "08:00-18:00", "wed": "08:00-18:00",
+      "thu": "08:00-18:00", "fri": "08:00-17:00", "sat": "09:00-13:00", "sun": null
+    },
+    "website_url": null,
+    "google_maps_url": "https://maps.google.com/?q=Helvetiaplatz+3+Zurich",
+    "reviews": [
+      { "rating": 5, "text": "Fixed my phone screen in 30 minutes." },
+      { "rating": 4, "text": "Good service, fair price." },
+      { "rating": 3, "text": "Repair held for a week then broke again." }
+    ]
+  },
+  {
+    "id": "p004",
+    "name": "Smile Dental Zürich",
+    "category": "dentist",
+    "location": { "lat": 47.3850, "lng": 8.5300 },
+    "address": "Weinbergstrasse 8, 8001 Zürich",
+    "rating": 4.6,
+    "review_count": 203,
+    "price_range": "CHF 120–350",
+    "opening_hours": {
+      "mon": "08:00-17:00", "tue": "08:00-17:00", "wed": "08:00-17:00",
+      "thu": "08:00-18:00", "fri": "08:00-16:00", "sat": null, "sun": null
+    },
+    "website_url": null,
+    "google_maps_url": "https://maps.google.com/?q=Weinbergstrasse+8+Zurich",
+    "reviews": [
+      { "rating": 5, "text": "Very gentle, explained everything clearly." },
+      { "rating": 5, "text": "Modern equipment and very professional." },
+      { "rating": 2, "text": "Long waiting times even with appointment." }
+    ]
+  },
+  {
+    "id": "p005",
+    "name": "Fresh Cut Barbershop",
+    "category": "haircut",
+    "location": { "lat": 47.3740, "lng": 8.5390 },
+    "address": "Militärstrasse 82, 8004 Zürich",
+    "rating": 4.4,
+    "review_count": 98,
+    "price_range": "CHF 28–45",
+    "opening_hours": {
+      "mon": "10:00-19:00", "tue": "10:00-19:00", "wed": "10:00-19:00",
+      "thu": "10:00-20:00", "fri": "10:00-20:00", "sat": "09:00-16:00", "sun": null
+    },
+    "website_url": null,
+    "google_maps_url": "https://maps.google.com/?q=Militarstrasse+82+Zurich",
+    "reviews": [
+      { "rating": 5, "text": "Great value for money. Very fast service." },
+      { "rating": 4, "text": "Solid haircut, no complaints." },
+      { "rating": 3, "text": "Staff can be a bit rushed during peak hours." }
+    ]
+  }
+]
