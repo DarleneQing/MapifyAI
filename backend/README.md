@@ -106,7 +106,7 @@ Do not change `schemas.py` without telling the other two devs.
 
 ---
 
-## Backend-1 — Agent Orchestration (Rosy)
+## Backend-1 — Agent Orchestration (Qing)
 
 **Goal:** user types a sentence → pipeline runs → ranked offers come out.
 
