@@ -15,6 +15,9 @@ class PlannerState(TypedDict):
     # Populated by Retrieval Agent
     candidate_providers: list[dict]
 
+    # retry count for feasibility check, how many times we've widened the radius
+    retry_count: int
+
     # Populated by Feasibility Agent
     feasible_providers: list[dict]
 

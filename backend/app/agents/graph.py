@@ -32,9 +32,10 @@ def _score_provider(p: dict, prefs: dict, min_price: float, max_price: float, mi
         return 1 - n if invert else n
 
     price_mid = _parse_price_midpoint(p.get("price_range", ""))
-    price_score    = norm(price_mid, min_price, max_price, invert=True)
-    distance_score = norm(p.get("distance_km", 0), min_dist, max_dist, invert=True)
-    rating_score   = norm(p.get("rating", 3.0), 1.0, 5.0)
+    price_score = norm(price_mid, min_price, max_price, invert=True)
+    distance_score = norm(p.get("distance_km", 0),
+                          min_dist, max_dist, invert=True)
+    rating_score = norm(p.get("rating", 3.0), 1.0, 5.0)
 
     wp = prefs.get("weight_price", 0.33)
     wd = prefs.get("weight_distance", 0.33)
@@ -88,20 +89,29 @@ def _ranking_node(state: PlannerState) -> PlannerState:
         state["ranked_offers"] = []
         return state
 
-    prices = [_parse_price_midpoint(p.get("price_range", "")) for p in providers]
-    dists  = [p.get("distance_km", 0) for p in providers]
+    prices = [_parse_price_midpoint(p.get("price_range", ""))
+              for p in providers]
+    dists = [p.get("distance_km", 0) for p in providers]
     min_p, max_p = min(prices), max(prices)
     min_d, max_d = min(dists), max(dists)
 
     scored = []
     for p, price in zip(providers, prices):
-        score, breakdown = _score_provider(p, prefs, min_p, max_p, min_d, max_d)
+        score, breakdown = _score_provider(
+            p, prefs, min_p, max_p, min_d, max_d)
         reasons = _explain(p, breakdown, prefs)
-        scored.append({**p, "score": score, "score_breakdown": breakdown, "reasons": reasons})
+        scored.append(
+            {**p, "score": score, "score_breakdown": breakdown, "reasons": reasons})
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     state["ranked_offers"] = scored
     return state
+
+
+def after_feasibility(state: PlannerState) -> str:
+    if len(state["feasible_providers"]) == 0 and state.get("retry_count", 0) < 2:
+        return "retry"
+    return "ranking"
 
 
 def _explanation_stub(state: PlannerState) -> PlannerState:
@@ -116,12 +126,19 @@ def build_graph():
     graph.add_node("retrieval", retrieval.run)
     graph.add_node("feasibility", feasibility.run)
     graph.add_node("ranking", _ranking_node)
-    graph.add_node("explanation", _explanation_stub)  # TODO: swap for Backend-3 node
+    # TODO: swap for Backend-3 node
+    graph.add_node("explanation", _explanation_stub)
 
     graph.set_entry_point("intent_parser")
     graph.add_edge("intent_parser", "retrieval")
     graph.add_edge("retrieval", "feasibility")
-    graph.add_edge("feasibility", "ranking")
+    graph.add_conditional_edges(
+        "feasibility",
+        after_feasibility,
+        {
+            "retry": "retrieval",
+            "ranking": "ranking",
+        })
     graph.add_edge("ranking", "explanation")
     graph.add_edge("explanation", END)
 
@@ -145,7 +162,8 @@ def run_pipeline(raw_input: str, location: dict, preferences: dict | None = None
         "candidate_providers": [],
         "feasible_providers": [],
         "ranked_offers": [],
-        "trace": make_trace(request_id="pending"),  # id updated after intent_parser runs
+        # id updated after intent_parser runs
+        "trace": make_trace(request_id="pending"),
         "error": None,
     }
     return pipeline.invoke(initial_state)

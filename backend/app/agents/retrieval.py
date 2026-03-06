@@ -19,7 +19,8 @@ from app.agents.state import PlannerState
 from app.agents.trace import add_step
 from app.services.geo import haversine_km
 
-SEED_FILE = Path(__file__).parent.parent.parent / "seed" / "zurich_providers.json"
+SEED_FILE = Path(__file__).parent.parent.parent / \
+    "seed" / "zurich_providers.json"
 
 
 def _load_providers(category: str) -> list[dict]:
@@ -35,13 +36,17 @@ def run(state: PlannerState) -> PlannerState:
     req = state["structured_request"]
     loc = req["location"]
     radius = req.get("radius_km", 5.0)
+    retry = state.get("retry_count", 0)
+    if retry > 0:
+        radius *= (1 + 0.5 * retry)  # widen radius by 50% each retry
     category = req.get("category", "")
 
     providers = _load_providers(category)
 
     candidates = []
     for p in providers:
-        dist = haversine_km(loc["lat"], loc["lng"], p["location"]["lat"], p["location"]["lng"])
+        dist = haversine_km(loc["lat"], loc["lng"],
+                            p["location"]["lat"], p["location"]["lng"])
         if dist <= radius:
             p["distance_km"] = round(dist, 2)
             candidates.append(p)
@@ -52,7 +57,8 @@ def run(state: PlannerState) -> PlannerState:
     state["trace"] = add_step(
         state["trace"],
         agent="retrieval",
-        input_data={"category": category, "location": loc, "radius_km": radius},
+        input_data={"category": category,
+                    "location": loc, "radius_km": radius},
         output_data={"count": len(candidates)},
         start_ms=start,
     )

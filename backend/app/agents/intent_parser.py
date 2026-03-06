@@ -56,6 +56,8 @@ def run(state: PlannerState) -> PlannerState:
     )
     parsed = json.loads(response.choices[0].message.content)
 
+    print(f"Intent Parser output: {parsed}")
+
     # Fallback for missing time
     if not parsed.get("requested_time"):
         parsed["requested_time"] = (now + timedelta(hours=1)).isoformat()
@@ -81,3 +83,21 @@ def run(state: PlannerState) -> PlannerState:
         start_ms=start,
     )
     return state
+
+
+if __name__ == "__main__":
+    # Quick local test
+    from app.agents.trace import make_trace
+    test_state = {
+        "raw_input": "I need a haircut tomorrow afternoon, preferably nearby and under 50 CHF.",
+        "location": {"lat": 47.3769, "lng": 8.5417},
+        "preferences": None,
+        "structured_request": None,
+        "candidate_providers": [],
+        "feasible_providers": [],
+        "ranked_offers": [],
+        "trace": make_trace("test"),
+        "error": None,
+    }
+    result = run(test_state)
+    print(json.dumps(result["structured_request"], indent=2))
