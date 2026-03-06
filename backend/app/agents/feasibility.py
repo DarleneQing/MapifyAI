@@ -83,6 +83,8 @@ def run(state: PlannerState) -> PlannerState:
             feasible.append(p)
 
     state["feasible_providers"] = feasible
+    if len(feasible) == 0:
+        state["retry_count"] = state.get("retry_count", 0) + 1
     state["trace"] = add_step(
         state["trace"],
         agent="feasibility",

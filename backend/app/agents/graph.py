@@ -155,6 +155,7 @@ def run_pipeline(raw_input: str, location: dict, preferences: dict | None = None
     Returns the final PlannerState with ranked_offers + trace.
     """
     initial_state: PlannerState = {
+        "retry_count": 0,
         "raw_input": raw_input,
         "location": location,
         "preferences": preferences or {"weight_price": 0.33, "weight_distance": 0.33, "weight_rating": 0.34},
