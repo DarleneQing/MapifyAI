@@ -13,36 +13,52 @@ TODO:
 import json
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from openai import OpenAI
 
 from app.agents.state import PlannerState
 from app.agents.trace import add_step
-# from app.config import OPENAI_API_KEY, DEFAULT_MODEL
-# from openai import OpenAI
+from app.config import OPENAI_API_KEY, DEFAULT_MODEL
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+SYSTEM_PROMPT = """You are an intent parser for a local services marketplace in Zurich.
+Extract structured information from the user's request and return ONLY a JSON object with:
+- category: string, one of: haircut, massage, dentist, repair, nails, physiotherapy, general
+- requested_time: ISO 8601 datetime string (if vague like "this afternoon" use today 15:00, "now" use current time, "tomorrow" use tomorrow 10:00)
+- radius_km: float (default 5.0, use smaller like 2.0 if user says "nearby" or "walking distance")
+- constraints: object with optional keys: max_price (number), language (string), notes (string)
+
+Today is {today}. Current time is {now}. User location: lat={lat}, lng={lng}.
+Respond with ONLY the JSON object."""
 
 
 def run(state: PlannerState) -> PlannerState:
     start = time.time() * 1000
+    now = datetime.now()
+    loc = state["location"]
 
-    # TODO: build prompt and call OpenAI API
-    # client = OpenAI(api_key=OPENAI_API_KEY)
-    # response = client.chat.completions.create(
-    #     model=DEFAULT_MODEL,
-    #     response_format={"type": "json_object"},  # guarantees JSON output
-    #     messages=[
-    #         {"role": "system", "content": SYSTEM_PROMPT},
-    #         {"role": "user", "content": state["raw_input"]},
-    #     ],
-    # )
-    # parsed = json.loads(response.choices[0].message.content)
+    prompt = SYSTEM_PROMPT.format(
+        today=now.strftime("%Y-%m-%d"),
+        now=now.strftime("%H:%M"),
+        lat=loc["lat"],
+        lng=loc["lng"],
+    )
 
-    # Stub — replace with real LLM output
-    parsed = {
-        "category": "general",
-        "requested_time": datetime.now().isoformat(),
-        "radius_km": 5.0,
-        "constraints": {},
-    }
+    response = client.chat.completions.create(
+        model=DEFAULT_MODEL,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": state["raw_input"]},
+        ],
+    )
+    parsed = json.loads(response.choices[0].message.content)
+
+    # Fallback for missing time
+    if not parsed.get("requested_time"):
+        parsed["requested_time"] = (now + timedelta(hours=1)).isoformat()
 
     structured = {
         "id": str(uuid.uuid4()),

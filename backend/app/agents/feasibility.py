@@ -25,13 +25,49 @@ TRAVEL_SPEED_KMH = 20.0
 MIN_OPEN_BUFFER_MINUTES = 15
 
 
+def _parse_hours(hours_str: str) -> tuple[int, int] | None:
+    """Parse 'HH:MM-HH:MM', return (close_hour*60+close_min, open_total) or None."""
+    try:
+        open_str, close_str = hours_str.split("-")
+        oh, om = map(int, open_str.split(":"))
+        ch, cm = map(int, close_str.split(":"))
+        return oh * 60 + om, ch * 60 + cm
+    except Exception:
+        return None
+
+
 def _check_provider(provider: dict, requested_dt: datetime) -> tuple[bool, str]:
-    """
-    TODO: implement feasibility check.
-    Return (is_feasible, time_label).
-    """
-    # Stub: accept everything
-    return True, "open"
+    """Return (is_feasible, time_label)."""
+    day_key = requested_dt.strftime("%a").lower()  # "mon", "tue", ...
+    hours_str = provider.get("opening_hours", {}).get(day_key)
+
+    if not hours_str:
+        return False, "closed today"
+
+    parsed = _parse_hours(hours_str)
+    if not parsed:
+        return True, "open"
+
+    open_total, close_total = parsed
+    req_total = requested_dt.hour * 60 + requested_dt.minute
+    dist_km = provider.get("distance_km", 0)
+    travel = eta_minutes(dist_km, TRAVEL_SPEED_KMH)
+    arrival = req_total + travel
+
+    if req_total < open_total:
+        return False, "not yet open"
+    if arrival > close_total:
+        return False, f"closes before you arrive"
+
+    remaining = close_total - arrival
+    if remaining < MIN_OPEN_BUFFER_MINUTES:
+        label = f"closing soon — only {remaining} min after arrival"
+    elif travel <= 10:
+        label = f"~{travel} min away"
+    else:
+        label = f"~{travel} min away"
+
+    return True, label
 
 
 def run(state: PlannerState) -> PlannerState:

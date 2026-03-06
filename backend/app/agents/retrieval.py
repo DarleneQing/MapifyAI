@@ -11,12 +11,23 @@ TODO:
   4. Sort by distance ascending
   5. Call add_step() to log the trace
 """
+import json
 import time
+from pathlib import Path
 
 from app.agents.state import PlannerState
 from app.agents.trace import add_step
 from app.services.geo import haversine_km
-# from app.models.db import get_db
+
+SEED_FILE = Path(__file__).parent.parent.parent / "seed" / "zurich_providers.json"
+
+
+def _load_providers(category: str) -> list[dict]:
+    """Load from seed file. Swap for DB query when Backend-2 is ready."""
+    providers = json.loads(SEED_FILE.read_text())
+    if category and category != "general":
+        providers = [p for p in providers if p.get("category") == category]
+    return providers
 
 
 def run(state: PlannerState) -> PlannerState:
@@ -26,12 +37,7 @@ def run(state: PlannerState) -> PlannerState:
     radius = req.get("radius_km", 5.0)
     category = req.get("category", "")
 
-    # TODO: replace stub with real DB query
-    # db = get_db()
-    # result = db.table("providers").select("*").eq("category", category).execute()
-    # providers = result.data or []
-
-    providers = []  # stub
+    providers = _load_providers(category)
 
     candidates = []
     for p in providers:
