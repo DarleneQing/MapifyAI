@@ -2,30 +2,47 @@
 GET  /api/providers        — list providers (optional category/location filter)
 GET  /api/providers/{id}   — provider detail page (US-07)
 
-Backend-2 owns this file.
-
-TODO:
-  1. Fetch from Supabase `providers` table
-  2. Include reviews summary if Backend-3 has generated it
+Controller layer: delegates to provider_service as defined in
+`doc/controller-service-contract.md`.
 """
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/providers", tags=["providers"])
 
+# Service dependency (injected/mocked in tests or wired in at startup)
+provider_service: Any | None = None
+
 
 @router.get("/")
-async def list_providers(category: str | None = None, lat: float | None = None, lng: float | None = None, radius_km: float = 5.0):
+async def list_providers(
+    category: str | None = None,
+    lat: float | None = None,
+    lng: float | None = None,
+    radius_km: float = 5.0,
+):
     """
-    TODO (Backend-2): query providers table with optional filters.
+    List providers with optional category and geo filters.
     """
-    raise HTTPException(status_code=501, detail="Not implemented")
+    if provider_service is None:
+        raise HTTPException(
+            status_code=500, detail="provider_service not configured"
+        )
+
+    providers = provider_service.list_providers(category, lat, lng, radius_km)
+    return providers
 
 
 @router.get("/{provider_id}")
 async def get_provider(provider_id: str):
     """
-    TODO (Backend-2): fetch single provider row + its reviews summary (from Backend-3).
-    Return fields: name, address, rating, opening_hours, price_range,
-                   website_url, google_maps_url, pros, cons.
+    Fetch provider detail, including any aggregated review summary.
     """
-    raise HTTPException(status_code=501, detail="Not implemented")
+    if provider_service is None:
+        raise HTTPException(
+            status_code=500, detail="provider_service not configured"
+        )
+
+    provider = provider_service.get_provider(provider_id)
+    return provider

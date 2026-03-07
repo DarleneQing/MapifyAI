@@ -2,31 +2,61 @@
 GET  /api/users/me              — current user profile + preferences
 PUT  /api/users/me/preferences  — save preference weights (US-08)
 
-Backend-2 owns this file.
-
-TODO:
-  1. Auth: use Supabase Auth (JWT from client header)
-  2. Persist UserPreferences in `users` table
-  3. Return preferences so frontend can populate the weight sliders
+Controller layer: delegates to auth_service and profile_service as defined in
+`doc/controller-service-contract.md`.
 """
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import UserPreferences
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
+# Service dependencies (injected/mocked in tests or wired in at startup)
+auth_service: Any | None = None
+profile_service: Any | None = None
+
 
 @router.get("/me")
 async def get_me():
     """
-    TODO (Backend-2): extract user from JWT, return profile + preferences.
+    Return current user profile plus preferences.
     """
-    raise HTTPException(status_code=501, detail="Not implemented")
+    if auth_service is None:
+        raise HTTPException(
+            status_code=500, detail="auth_service not configured"
+        )
+    if profile_service is None:
+        raise HTTPException(
+            status_code=500, detail="profile_service not configured"
+        )
+
+    user_id = auth_service.get_current_user_id()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
+
+    preferences = profile_service.get_or_create_user_preferences(user_id)
+    return {"id": user_id, "preferences": preferences}
 
 
 @router.put("/me/preferences")
 async def update_preferences(prefs: UserPreferences):
     """
-    TODO (Backend-2): upsert preferences row in Supabase for current user.
+    Update current user's preference weights.
     """
-    raise HTTPException(status_code=501, detail="Not implemented")
+    if auth_service is None:
+        raise HTTPException(
+            status_code=500, detail="auth_service not configured"
+        )
+    if profile_service is None:
+        raise HTTPException(
+            status_code=500, detail="profile_service not configured"
+        )
+
+    user_id = auth_service.get_current_user_id()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
+
+    updated = profile_service.update_user_preferences(user_id, prefs)
+    return updated
