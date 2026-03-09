@@ -11,6 +11,17 @@ import app.api.places as places_api
 
 client = TestClient(app)
 
+AGENT_PIPELINE_NODES = [
+    "input_agent",
+    "crawling_agent_search",
+    "crawling_agent_transit",
+    "evaluation_agent",
+    "review_agent",
+    "orchestrator_agent",
+    "output_agent_ranking",
+    "output_agent_recommendation",
+]
+
 
 def test_create_request_non_stream_uses_services(monkeypatch):
     calls: dict[str, object] = {}
@@ -40,9 +51,22 @@ def test_create_request_non_stream_uses_services(monkeypatch):
                         "id": "offer-1",
                         "price": 42,
                         "provider_id": "prov-1",
+                        "transit": {
+                            "duration_minutes": 12,
+                            "transport_types": ["tram"],
+                            "departure_time": "17:45",
+                            "summary": "12 min by tram (Line 4)",
+                            "connections": None,
+                        },
+                        "one_sentence_recommendation": "Affordable salon with great reviews, just 12 min by tram.",
                     }
                 ],
-                "trace": {"steps": []},
+                "trace": {
+                    "steps": [
+                        {"agent_name": node, "status": "success", "duration_ms": 100}
+                        for node in AGENT_PIPELINE_NODES
+                    ]
+                },
             }
 
     monkeypatch.setattr(
@@ -83,6 +107,21 @@ def test_create_request_non_stream_uses_services(monkeypatch):
 
     assert calls["run_recommendation_pipeline_args"] == "req-123"
     assert isinstance(body["offers"], list)
+    assert len(body["offers"]) == 1
+
+    offer = body["offers"][0]
+    assert "transit" in offer
+    assert offer["transit"]["duration_minutes"] == 12
+    assert offer["transit"]["transport_types"] == ["tram"]
+    assert offer["transit"]["departure_time"] == "17:45"
+    assert offer["transit"]["summary"] == "12 min by tram (Line 4)"
+    assert offer["one_sentence_recommendation"] == "Affordable salon with great reviews, just 12 min by tram."
+
+    assert "trace" in body
+    trace_steps = body["trace"]["steps"]
+    assert len(trace_steps) == len(AGENT_PIPELINE_NODES)
+    step_names = [s["agent_name"] for s in trace_steps]
+    assert step_names == AGENT_PIPELINE_NODES
 
 
 def test_get_request_aggregates_request_and_offers(monkeypatch):
@@ -143,7 +182,36 @@ def test_get_trace_uses_trace_service(monkeypatch):
     class DummyTraceService:
         def get_trace(self, request_id: str):
             calls["get_trace_args"] = request_id
-            return {"request_id": request_id, "steps": []}
+            return {
+                "trace_id": "trace-abc",
+                "request_id": request_id,
+                "graph": {
+                    "nodes": [
+                        {"id": node, "type": "agent"}
+                        for node in AGENT_PIPELINE_NODES
+                    ],
+                    "edges": [
+                        {"from": "input_agent", "to": "crawling_agent_search"},
+                        {"from": "input_agent", "to": "review_agent"},
+                        {"from": "crawling_agent_search", "to": "crawling_agent_transit"},
+                        {"from": "crawling_agent_transit", "to": "evaluation_agent"},
+                        {"from": "evaluation_agent", "to": "orchestrator_agent"},
+                        {"from": "review_agent", "to": "orchestrator_agent"},
+                        {"from": "orchestrator_agent", "to": "output_agent_ranking"},
+                        {"from": "orchestrator_agent", "to": "output_agent_recommendation"},
+                    ],
+                },
+                "steps": [
+                    {
+                        "agent_name": node,
+                        "status": "success",
+                        "duration_ms": 100,
+                        "input_summary": "...",
+                        "output_summary": "...",
+                    }
+                    for node in AGENT_PIPELINE_NODES
+                ],
+            }
 
     monkeypatch.setattr(
         requests_api, "trace_service", DummyTraceService(), raising=False
@@ -154,8 +222,19 @@ def test_get_trace_uses_trace_service(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["request_id"] == "req-trace"
-    assert body["steps"] == []
+    assert body["trace_id"] == "trace-abc"
     assert calls["get_trace_args"] == "req-trace"
+
+    node_ids = [n["id"] for n in body["graph"]["nodes"]]
+    assert node_ids == AGENT_PIPELINE_NODES
+
+    assert len(body["graph"]["edges"]) == 8
+    assert body["graph"]["edges"][0] == {"from": "input_agent", "to": "crawling_agent_search"}
+    assert body["graph"]["edges"][1] == {"from": "input_agent", "to": "review_agent"}
+
+    step_names = [s["agent_name"] for s in body["steps"]]
+    assert step_names == AGENT_PIPELINE_NODES
+    assert all(s["status"] == "success" for s in body["steps"])
 
 
 def test_list_providers_uses_provider_service(monkeypatch):
@@ -347,7 +426,31 @@ def test_get_place_detail_uses_place_service(monkeypatch):
     class DummyPlaceService:
         def get_place_detail(self, place_id: str, request_id: str | None):
             calls["get_place_detail_args"] = (place_id, request_id)
-            return {"id": place_id, "name": "Test Place"}
+            return {
+                "id": place_id,
+                "name": "Test Place",
+                "review_summary": {
+                    "advantages": [
+                        "Professional staff",
+                        "Clean environment",
+                    ],
+                    "disadvantages": [
+                        "Long wait during peak hours",
+                    ],
+                    "star_reasons": {
+                        "five_star": ["Great value"],
+                        "one_star": ["Occasional rude staff"],
+                    },
+                },
+                "transit": {
+                    "duration_minutes": 15,
+                    "transport_types": ["bus"],
+                    "departure_time": "18:00",
+                    "summary": "15 min by bus (Line 33)",
+                    "connections": None,
+                },
+                "one_sentence_recommendation": "Clean, professional salon reachable in 15 min by bus.",
+            }
 
     monkeypatch.setattr(
         places_api, "place_service", DummyPlaceService(), raising=False
@@ -360,6 +463,21 @@ def test_get_place_detail_uses_place_service(monkeypatch):
     assert body["place"]["id"] == "place-123"
     assert body["request_id"] == "req-999"
     assert calls["get_place_detail_args"] == ("place-123", "req-999")
+
+    detail = body["place"]
+    assert "review_summary" in detail
+    review = detail["review_summary"]
+    assert "advantages" in review
+    assert "disadvantages" in review
+    assert "positive_highlights" not in review
+    assert "negative_highlights" not in review
+    assert len(review["advantages"]) == 2
+    assert len(review["disadvantages"]) == 1
+
+    assert "transit" in detail
+    assert detail["transit"]["duration_minutes"] == 15
+    assert detail["transit"]["transport_types"] == ["bus"]
+    assert detail["one_sentence_recommendation"] is not None
 
 
 def test_list_place_reviews_uses_place_service(monkeypatch):
@@ -391,4 +509,200 @@ def test_list_place_reviews_uses_place_service(monkeypatch):
     assert body["total"] == 1
     assert len(body["items"]) == 1
     assert calls["list_reviews_args"] == ("place-123", 2, 10, "recent")
+
+
+def test_create_request_pipeline_returns_mixed_transit_connections(monkeypatch):
+    """Verify that multi-leg SBB transit with connections passes through correctly."""
+
+    class DummyAuthService:
+        def get_current_user_id(self) -> str | None:
+            return None
+
+    class DummyRequestService:
+        def create_request(self, payload, user_id):
+            return {"id": "req-transit"}
+
+    class DummyOrchestratorService:
+        def run_recommendation_pipeline(self, request_id: str):
+            return {
+                "request": {"id": request_id},
+                "offers": [
+                    {
+                        "id": "offer-mixed",
+                        "price": 55,
+                        "provider_id": "prov-2",
+                        "transit": {
+                            "duration_minutes": 22,
+                            "transport_types": ["tram", "bus"],
+                            "departure_time": "17:45",
+                            "summary": "22 min — Tram 4 → Bus 33",
+                            "connections": [
+                                {
+                                    "transport_type": "tram",
+                                    "line": "4",
+                                    "departure_time": "17:45",
+                                    "arrival_time": "17:58",
+                                    "duration_minutes": 13,
+                                    "from_stop": "Zürich HB",
+                                    "to_stop": "Stauffacher",
+                                },
+                                {
+                                    "transport_type": "bus",
+                                    "line": "33",
+                                    "departure_time": "18:01",
+                                    "arrival_time": "18:07",
+                                    "duration_minutes": 6,
+                                    "from_stop": "Stauffacher",
+                                    "to_stop": "Schmiede Wiedikon",
+                                },
+                            ],
+                        },
+                        "one_sentence_recommendation": "Great value, reachable in 22 min via tram and bus.",
+                    }
+                ],
+                "trace": None,
+            }
+
+    monkeypatch.setattr(
+        requests_api, "auth_service", DummyAuthService(), raising=False
+    )
+    monkeypatch.setattr(
+        requests_api, "request_service", DummyRequestService(), raising=False
+    )
+    monkeypatch.setattr(
+        requests_api, "orchestrator_service", DummyOrchestratorService(), raising=False
+    )
+
+    payload = {
+        "raw_input": "Find a barber near Wiedikon",
+        "location": {"lat": 47.372, "lng": 8.525},
+    }
+
+    response = client.post("/api/requests?stream=false", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    offer = body["offers"][0]
+
+    transit = offer["transit"]
+    assert transit["duration_minutes"] == 22
+    assert transit["transport_types"] == ["tram", "bus"]
+    assert len(transit["connections"]) == 2
+
+    leg1 = transit["connections"][0]
+    assert leg1["transport_type"] == "tram"
+    assert leg1["line"] == "4"
+    assert leg1["from_stop"] == "Zürich HB"
+    assert leg1["to_stop"] == "Stauffacher"
+
+    leg2 = transit["connections"][1]
+    assert leg2["transport_type"] == "bus"
+    assert leg2["line"] == "33"
+    assert leg2["from_stop"] == "Stauffacher"
+    assert leg2["to_stop"] == "Schmiede Wiedikon"
+
+    assert offer["one_sentence_recommendation"] is not None
+
+
+def test_get_place_detail_review_summary_uses_advantages_not_highlights(monkeypatch):
+    """Verify review summaries use advantages/disadvantages, NOT positive_highlights/negative_highlights."""
+
+    class DummyPlaceService:
+        def get_place_detail(self, place_id: str, request_id: str | None):
+            return {
+                "id": place_id,
+                "name": "Review Test Place",
+                "review_summary": {
+                    "advantages": ["Friendly staff", "Good price", "Clean"],
+                    "disadvantages": ["Small space", "Long wait"],
+                    "star_reasons": {
+                        "five_star": ["Excellent service"],
+                        "one_star": ["Noise"],
+                    },
+                },
+            }
+
+    monkeypatch.setattr(
+        places_api, "place_service", DummyPlaceService(), raising=False
+    )
+
+    response = client.get("/api/places/place-review-test")
+
+    assert response.status_code == 200
+    body = response.json()
+    review = body["place"]["review_summary"]
+
+    assert isinstance(review["advantages"], list)
+    assert len(review["advantages"]) == 3
+    assert "Friendly staff" in review["advantages"]
+
+    assert isinstance(review["disadvantages"], list)
+    assert len(review["disadvantages"]) == 2
+    assert "Long wait" in review["disadvantages"]
+
+    assert "positive_highlights" not in review
+    assert "negative_highlights" not in review
+
+    assert "star_reasons" in review
+    assert isinstance(review["star_reasons"]["five_star"], list)
+    assert isinstance(review["star_reasons"]["one_star"], list)
+
+
+def test_get_trace_returns_all_six_agent_pipeline_nodes(monkeypatch):
+    """Verify trace graph contains all 8 nodes of the 6-agent pipeline and correct DAG edges."""
+
+    class DummyTraceService:
+        def get_trace(self, request_id: str):
+            return {
+                "trace_id": "trace-full",
+                "request_id": request_id,
+                "graph": {
+                    "nodes": [
+                        {"id": node, "type": "agent"}
+                        for node in AGENT_PIPELINE_NODES
+                    ],
+                    "edges": [
+                        {"from": "input_agent", "to": "crawling_agent_search"},
+                        {"from": "input_agent", "to": "review_agent"},
+                        {"from": "crawling_agent_search", "to": "crawling_agent_transit"},
+                        {"from": "crawling_agent_transit", "to": "evaluation_agent"},
+                        {"from": "evaluation_agent", "to": "orchestrator_agent"},
+                        {"from": "review_agent", "to": "orchestrator_agent"},
+                        {"from": "orchestrator_agent", "to": "output_agent_ranking"},
+                        {"from": "orchestrator_agent", "to": "output_agent_recommendation"},
+                    ],
+                },
+                "steps": [
+                    {"agent_name": n, "status": "success", "duration_ms": 50}
+                    for n in AGENT_PIPELINE_NODES
+                ],
+            }
+
+    monkeypatch.setattr(
+        requests_api, "trace_service", DummyTraceService(), raising=False
+    )
+
+    response = client.get("/api/requests/req-dag/trace")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    node_ids = {n["id"] for n in body["graph"]["nodes"]}
+    assert node_ids == set(AGENT_PIPELINE_NODES)
+    assert len(body["graph"]["nodes"]) == 8
+
+    edges = body["graph"]["edges"]
+    assert len(edges) == 8
+
+    input_targets = {e["to"] for e in edges if e["from"] == "input_agent"}
+    assert input_targets == {"crawling_agent_search", "review_agent"}
+
+    orchestrator_sources = {e["from"] for e in edges if e["to"] == "orchestrator_agent"}
+    assert orchestrator_sources == {"evaluation_agent", "review_agent"}
+
+    output_targets = {e["to"] for e in edges if e["from"] == "orchestrator_agent"}
+    assert output_targets == {"output_agent_ranking", "output_agent_recommendation"}
+
+    assert all(s["status"] == "success" for s in body["steps"])
+    assert len(body["steps"]) == 8
 
