@@ -85,36 +85,73 @@
 - **SSE 事件格式**（事件名 + data，Controller 负责按此格式输出）：
 
 ```json
-// event: request_created
+// event: intent_parsed — Input Agent 完成意图解析
 {
-  "type": "request_created",
-  "request": { /* Request */ }
-}
-
-// event: partial_results
-{
-  "type": "partial_results",
+  "type": "intent_parsed",
   "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 子集 */ ]
+  "intent": { /* Intent JSON */ }
 }
 
-// event: completed
+// event: stores_crawled — Crawling Agent Sub-1 (Apify) 完成店铺搜索
+{
+  "type": "stores_crawled",
+  "request_id": "req_123",
+  "store_count": 18,
+  "results": [ /* PlaceSummary[] 基础信息 */ ]
+}
+
+// event: transit_computed — Crawling Agent Sub-2 (SBB API) 完成交通计算
+{
+  "type": "transit_computed",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含 transit 字段 */ ]
+}
+
+// event: reviews_fetched — Review Agent 完成评论抓取与 LLM 摘要
+{
+  "type": "reviews_fetched",
+  "request_id": "req_123",
+  "reviews": [ /* { place_id, advantages, disadvantages } */ ]
+}
+
+// event: scores_computed — Evaluation Agent 完成评分计算
+{
+  "type": "scores_computed",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含 recommendation_score */ ]
+}
+
+// event: recommendations_ready — Orchestrator Agent 完成聚合与优化
+{
+  "type": "recommendations_ready",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含推荐理由 */ ]
+}
+
+// event: completed — Output Agent 完成，最终结果
 {
   "type": "completed",
   "request_id": "req_123",
-  "results": [ /* 最终 Top 10 */ ]
+  "results": [ /* 最终 Top 10，含 one_sentence_recommendation */ ]
 }
 ```
 
 - **前端处理建议**：
-  - 首次收到 `request_created`：
+  - 收到 `intent_parsed`：
     - 保存 `request_id`；
-    - 显示“正在为你搜索…”之类的状态。
-  - 每次收到 `partial_results`：
-    - 增量更新列表（按 `recommendation_score` 降序合并）。
-    - 可逐步填充骨架屏中的卡片信息。
+    - 显示“已理解你的需求，正在搜索…”。
+  - 收到 `stores_crawled`：
+    - 用基础信息初始化列表骨架屏和地图标注。
+  - 收到 `transit_computed`：
+    - 为每个卡片填充公共交通信息（时长、交通方式）。
+  - 收到 `reviews_fetched`：
+    - 填充优势 / 劣势摘要标签。
+  - 收到 `scores_computed`：
+    - 按 `recommendation_score` 重新排序列表。
+  - 收到 `recommendations_ready`：
+    - 填充推荐理由标签。
   - 收到 `completed`：
-    - 用最终 `results` 替换本地列表。
+    - 用最终 `results` 替换本地列表（含 `one_sentence_recommendation`）。
     - 关闭 loading / 显示“已为你找到 X 个地点”。
 
 **方式 B：先 `POST` 拿 `request_id`，再用 `GET /api/requests/{id}/stream` 开 SSE**  
@@ -151,7 +188,7 @@
 
 - **请求方式**：
   - `GET`，`Accept: text/event-stream`
-- **事件格式**：与 2.1.2 中 `request_created` / `partial_results` / `completed` 一致。
+- **事件格式**：与 2.1.2 中 7 阶段事件一致（`intent_parsed` → `stores_crawled` → `transit_computed` → `reviews_fetched` → `scores_computed` → `recommendations_ready` → `completed`）。
 
 ---
 
@@ -170,8 +207,14 @@
   - `rating_count`: number
   - `recommendation_score`: number（用于排序）
   - `status`: `"open_now" | "closing_soon" | "closed"`
-  - `eta_minutes`: number
-  - `reason_tags`: string[]（用于列表卡片上的“推荐理由标签”）
+  - `transit`: object — 公共交通信息（来自 SBB API）
+    - `duration_minutes`: number
+    - `transport_types`: string[]（如 `["tram"]` 或 `["tram", "bus"]`）
+    - `departure_time`: string（如 `"17:45"`）
+    - `summary`: string（如 `"22 min — Tram 4 → Bus 33"`）
+    - `connections`: array | null — 当 `transport_types` 含多种方式时，包含每段换乘详情
+  - `reason_tags`: string[]
+  - `one_sentence_recommendation`: string（用于列表卡片上的“推荐理由标签”）
 
 - **前端使用建议**：
   - 地图标注：用 `place_id` / 坐标（需由后端扩展 `PlaceSummary` 或详情接口返回）作为唯一标识。
@@ -215,8 +258,15 @@
       }
     },
     "review_summary": {
-      "positive_highlights": [ "理发师技术专业、态度友好" ],
-      "negative_highlights": [ "高峰期等待时间较长" ],
+      "advantages": [
+        "理发师技术专业、态度友好",
+        "环境干净整洁",
+        "性价比高，定价合理"
+      ],
+      "disadvantages": [
+        "高峰期等待时间较长",
+        "个别技师服务态度有待改善"
+      ],
       "star_reasons": {
         "five_star": [ "性价比高", "理发效果满意" ],
         "one_star": [ "个别技师服务态度差" ]
@@ -239,7 +289,7 @@
 
 - **前端约定**：
   - 详情页顶部展示 `place` 的基础信息和营业状态。
-  - 中间区域展示评论摘要、好/差评要点、评分分布图。
+  - 中间区域展示评论摘要（优势 `advantages` / 劣势 `disadvantages`）、评分分布图。
   - 推荐理由区域使用 `recommendation_reasons` 渲染“为什么推荐这家”。
 
 ---
@@ -448,25 +498,50 @@
   "request_id": "req_123",
   "graph": {
     "nodes": [
-      { "id": "orchestrator", "type": "agent" },
-      { "id": "search_agent", "type": "agent" },
-      { "id": "realtime_validator", "type": "agent" }
+      { "id": "input_agent", "type": "agent" },
+      { "id": "crawling_agent_search", "type": "agent" },
+      { "id": "crawling_agent_transit", "type": "agent" },
+      { "id": "evaluation_agent", "type": "agent" },
+      { "id": "review_agent", "type": "agent" },
+      { "id": "orchestrator_agent", "type": "agent" },
+      { "id": "output_agent_ranking", "type": "agent" },
+      { "id": "output_agent_recommendation", "type": "agent" }
     ],
     "edges": [
-      { "from": "orchestrator", "to": "search_agent" },
-      { "from": "orchestrator", "to": "realtime_validator" }
+      { "from": "input_agent", "to": "crawling_agent_search" },
+      { "from": "input_agent", "to": "review_agent" },
+      { "from": "crawling_agent_search", "to": "crawling_agent_transit" },
+      { "from": "crawling_agent_transit", "to": "evaluation_agent" },
+      { "from": "evaluation_agent", "to": "orchestrator_agent" },
+      { "from": "review_agent", "to": "orchestrator_agent" },
+      { "from": "orchestrator_agent", "to": "output_agent_ranking" },
+      { "from": "orchestrator_agent", "to": "output_agent_recommendation" }
     ]
   },
   "steps": [
     {
-      "node_id": "search_agent",
+      "agent_name": "input_agent",
       "status": "success",
-      "duration_ms": 320,
-      "input_summary": "...",
-      "output_summary": "返回 25 个候选地点..."
+      "duration_ms": 850,
+      "input_summary": "帮我找附近三公里内评价不错的理发店...",
+      "output_summary": "解析为 haircut 类别，半径 3km，预算 medium"
+    },
+    {
+      "agent_name": "crawling_agent_search",
+      "status": "success",
+      "duration_ms": 2100,
+      "input_summary": "Apify Google Maps scraper: haircut, 47.37°N 8.54°E, 3km",
+      "output_summary": "返回 18 家店铺，过滤营业时间后剩余 12 家"
+    },
+    {
+      "agent_name": "crawling_agent_transit",
+      "status": "success",
+      "duration_ms": 1500,
+      "input_summary": "SBB API: 12 个目的地",
+      "output_summary": "已计算 12 条公共交通路线（tram/bus/train）"
     }
   ],
-  "created_at": "..."
+  "created_at": "2026-03-09T14:30:00Z"
 }
 ```
 
@@ -575,6 +650,28 @@ export interface StructuredRequest {
   created_at: string | null; // ISO datetime
 }
 
+// SBB 公共交通换乘段
+export type TransportType = "train" | "bus" | "tram" | "walk";
+
+export interface TransitConnection {
+  transport_type: TransportType;
+  line?: string | null;
+  departure_time?: string | null;
+  arrival_time?: string | null;
+  duration_minutes: number;
+  from_stop?: string | null;
+  to_stop?: string | null;
+}
+
+// SBB 公共交通信息
+export interface TransitInfo {
+  duration_minutes: number;
+  transport_types: TransportType[];
+  departure_time?: string | null;
+  summary?: string | null;
+  connections?: TransitConnection[] | null;
+}
+
 // 列表 / 地图使用的聚合结果，来自本文件 3. PlaceSummary 约定
 export interface PlaceSummary {
   place_id: string;
@@ -586,8 +683,9 @@ export interface PlaceSummary {
   rating_count: number;
   recommendation_score: number;
   status: "open_now" | "closing_soon" | "closed" | string;
-  eta_minutes: number;
+  transit?: TransitInfo | null;
   reason_tags: string[];
+  one_sentence_recommendation?: string | null;
 }
 
 // 2.1 / 2.2 接口统一的返回体
@@ -596,14 +694,42 @@ export interface RequestWithResults {
   results: PlaceSummary[];
 }
 
-// SSE 事件（2.1.2 / 2.3），前端可据此做类型收窄
+// SSE 事件（2.1.2 / 2.3），前端可据此做类型收窄 — 7 阶段 Agent 管道
+export interface ReviewFetchedItem {
+  place_id: string;
+  advantages: string[];
+  disadvantages: string[];
+}
+
 export type RequestSseEvent =
   | {
-      type: "request_created";
-      request: StructuredRequest;
+      type: "intent_parsed";
+      request_id: string;
+      intent: Record<string, unknown>;
     }
   | {
-      type: "partial_results";
+      type: "stores_crawled";
+      request_id: string;
+      store_count: number;
+      results: PlaceSummary[];
+    }
+  | {
+      type: "transit_computed";
+      request_id: string;
+      results: PlaceSummary[];
+    }
+  | {
+      type: "reviews_fetched";
+      request_id: string;
+      reviews: ReviewFetchedItem[];
+    }
+  | {
+      type: "scores_computed";
+      request_id: string;
+      results: PlaceSummary[];
+    }
+  | {
+      type: "recommendations_ready";
       request_id: string;
       results: PlaceSummary[];
     }
@@ -635,8 +761,8 @@ export interface PlaceBasic {
 }
 
 export interface ReviewSummary {
-  positive_highlights: string[];
-  negative_highlights: string[];
+  advantages: string[];
+  disadvantages: string[];
   star_reasons: Record<string, string[]>;
 }
 
@@ -748,7 +874,7 @@ export interface TraceGraphEdge {
 }
 
 export interface TraceStepView {
-  node_id: string;
+  agent_name: string;
   status: string;
   duration_ms: number;
   input_summary: string;

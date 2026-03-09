@@ -21,8 +21,9 @@
   - 不只是按评分/距离排序，而是结合用户画像、预算、场景偏好做「个性化 Top N 排行榜」。
   - 提供 LLM 驱动的评论摘要与可解释的推荐理由。
 - **技术亮点**
-  - 使用 **LangGraph** 搭建有状态、多 Agent 的 DAG 调度工作流。
-  - 展示多 Agent 并发执行、状态追踪和降级策略等工程能力。
+  - 使用 **LangGraph** 搭建有状态、多 Agent 的 DAG 调度工作流，包含 6 大 Agent 模块：Input Agent、Crawling Agent（含 2 个子 Agent）、Evaluation Agent、Review Agent、Orchestrator Agent、Output Agent（含 2 个子 Agent）。
+  - 集成 **Apify Google Maps scraper** 实现店铺搜索与评论抓取，集成 **SBB API** 获取瑞士公共交通实时 ETA（含交通方式：火车/公交/电车）。
+  - 展示多 Agent 并发执行（Crawling Agent 与 Review Agent 并行）、状态追踪和降级策略等工程能力。
 
 ### 1.3 文档目标
 
@@ -175,12 +176,12 @@
 
 **需求要点**
 
-- 评论聚合：
-  - 获取最近约 50 条 Google Reviews；
+- 评论聚合（Review Agent）：
+  - 使用 **Apify Google Maps review scraper** 批量抓取所有候选店铺的评论数据；
   - 按星级分组（如 1–2 星、4–5 星）；
-  - 提取高频关键词供摘要 Agent 使用。
-- 摘要与分星理由：
-  - 为好评/差评分别生成 3–5 条核心点评要点；
+  - 提取高频关键词供 LLM 摘要使用。
+- 摘要与优劣势分析：
+  - 使用 LLM 对每个店铺的评论生成 **优势（advantages）** 和 **劣势（disadvantages）** 摘要，各 3–5 条；
   - 提供 5 星/1 星等分星理由的聚合摘要。
 - 其它信息：
   - 价格区间；
@@ -193,17 +194,20 @@
 - 详情页与列表页信息联动一致；
 - 用户能在 1–2 屏内获取关键信息。
 
-#### 4.1.4 实时营业时间与可达性验证（US-07 / US-17 / US-08）
+#### 4.1.4 营业时间过滤与公共交通可达性验证（US-07 / US-17 / US-08）
 
 **目标**  
-在推荐前自动核查地点是否在可达时间窗口内营业，并给出是否可达的明确提示。
+在推荐前自动核查地点是否在可达时间窗口内营业，并结合公共交通数据给出是否可达的明确提示。
 
 **需求要点**
 
-- 使用 Google Places Details API 获取实时营业状态；
-- 使用 Distance Matrix API 计算预计出行时间；
-- 根据当前时间 + 出行时间，判断：
-  - 营业中；
+- **Crawling Agent Sub-1**：使用 **Apify Google Maps scraper** 获取店铺列表及营业时间，在抓取阶段即排除营业时间不匹配用户意图时间窗口的店铺；
+- **Crawling Agent Sub-2**：使用 **SBB API** 查询用户当前位置到各候选店铺的公共交通路线，返回：
+  - `duration_minutes`：预计出行时长；
+  - `transport_type`：交通方式（train / bus / tram）；
+  - `departure_time`：最近可出发时间；
+- 根据当前时间 + SBB 出行时间，判断：
+  - 营业中且可达；
   - 即将关门（例如 30 分钟内关门且预计行程时间接近上限）；
   - 已关门/不可达。
 - 将可达性作为排序权重的一部分：
@@ -213,37 +217,65 @@
 **验收标准**
 
 - 典型场景中，推荐列表不会出现明显“已关门”但仍排名很靠前的结果；
-- 列表条目有可视化的状态标记（营业中/即将关门/已关门）。
+- 列表条目有可视化的状态标记（营业中/即将关门/已关门）；
+- 每条结果包含 SBB 公共交通信息（时长 + 交通方式）。
 
-#### 4.1.5 Multi-Agent Orchestrator（US-13 ~ US-17）
+#### 4.1.5 Multi-Agent 系统架构（US-13 ~ US-17）
 
 **目标**  
-通过主 Agent（Orchestrator）使用 LangGraph 管理多 Agent 的任务规划与调度。
+通过 6 大 Agent 模块使用 LangGraph 管理多 Agent 的 DAG 调度，实现从意图理解到最终推荐输出的完整流程。
 
 **需求要点**
 
-- Agent 列表（与架构设计一致）：
-  - 主 Agent：意图识别、任务规划、调度与结果聚合；
-  - 地点搜索 Agent：封装 Google Places Text Search；
-  - 实时验证 Agent：营业状态 + 可达性计算；
-  - 评论聚合 Agent：按星级分组评论并抽取关键词；
-  - 摘要评分 Agent：生成摘要、分星理由、综合推荐分；
-  - 个性化 Agent：结合用户画像与权重进行最终排序。
-- 调用流程（简要）：
-  - 主 Agent 接收结构化意图；
-  - 并行调用：地点搜索 + 实时验证（针对候选集）；
-  - 对候选集批量并行评论聚合与摘要评分；
-  - 个性化 Agent 对结果重排；
-  - 接口层统一对前端输出。
-- 降级策略：
-  - 某个子 Agent 失败时，只影响部分字段，不阻塞整体返回；
+- **Agent 列表**：
+  1. **Input Agent**（意图理解）：解析用户自然语言输入，输出结构化意图 JSON（服务类型、位置、时间窗口、预算、特殊需求等）；
+  2. **Crawling Agent**（数据抓取，含 2 个子 Agent）：
+     - **Sub-1（Store Crawler）**：根据用户位置和意图，调用 **Apify Google Maps scraper** 获取候选店铺列表，排除营业时间不匹配用户时间窗口的店铺；
+     - **Sub-2（Transit Calculator）**：调用 **SBB API** 查询用户到每个候选店铺的公共交通路线，返回出行时长（duration）、交通方式（train/bus/tram）、最近出发时间（departure_time）；
+  3. **Evaluation Agent**（评分计算）：根据用户偏好权重（价格/距离/评分/交通时间等），为每个店铺计算综合推荐分，输出带分数的候选列表；
+  4. **Review Agent**（评论分析）：使用 **Apify Google Maps review scraper** 批量抓取所有候选店铺的评论文本，通过 LLM 为每个店铺生成优势（advantages）和劣势（disadvantages）摘要；
+  5. **Orchestrator Agent**（结果聚合与优化）：收集 Evaluation Agent 和 Review Agent 的输出，整合评分、评论摘要和交通信息，精炼为最终推荐列表，并为每条推荐生成可解释的推荐理由；
+  6. **Output Agent**（输出格式化，含 2 个子 Agent）：
+     - **Sub-1（Ranking Formatter）**：输出最终排名列表，包含名称、评分、距离、交通信息、价格区间、推荐理由；
+     - **Sub-2（Recommendation Writer）**：为每个店铺生成一句话推荐文案。
+
+- **调用流程（DAG）**：
+  ```
+  Input Agent
+      │
+      ├──────────────────┐
+      ▼                  ▼
+  Crawling Agent    Review Agent
+  (Sub-1 → Sub-2)   (Apify + LLM)
+      │                  │
+      ▼                  │
+  Evaluation Agent       │
+      │                  │
+      ├──────────────────┘
+      ▼
+  Orchestrator Agent
+      │
+      ▼
+  Output Agent
+  (Sub-1 + Sub-2)
+  ```
+  - Input Agent 首先执行；
+  - Crawling Agent（Sub-1 → Sub-2 串行）与 Review Agent **并行**执行；
+  - Evaluation Agent 在 Crawling Agent 完成后执行；
+  - Orchestrator Agent 在 Evaluation Agent 和 Review Agent 均完成后执行；
+  - Output Agent 最后执行。
+
+- **降级策略**：
+  - Review Agent 失败时：推荐列表仍可返回，评论摘要字段留空或以占位符替代；
+  - SBB API 不可用时：回退到基于 haversine 距离的简单 ETA 估算；
+  - 某个子 Agent 失败只影响部分字段，不阻塞整体返回；
   - 对失败原因进行日志记录。
 
 **验收标准**
 
-- 使用 LangGraph 实现有状态 DAG；
-- 至少支持上述节点间的基本并发；
-- 能在日志中追踪每个 Agent 的状态；
+- 使用 LangGraph 实现有状态 DAG，包含上述 6 个 Agent 节点；
+- Crawling Agent 与 Review Agent 支持并行执行；
+- 能在日志 / Trace 中追踪每个 Agent 的执行状态与耗时；
 - 对单个子 Agent 失败有可见的降级行为，而不是整体失败。
 
 ---
@@ -425,10 +457,11 @@
   - 形态：H5 + PWA，部署至 Vercel。
 - 后端：
   - 接口层：FastAPI（Python），提供 REST + SSE 接口；
-  - Agent 框架：LangGraph（推荐）+ LLM（GPT-4o-mini / Claude Haiku）；
-  - Orchestrator 与各子 Agent 以内部服务形式提供。
+  - Agent 框架：LangGraph + LLM（GPT-4o-mini / Claude Haiku）；
+  - 6 大 Agent 模块：Input Agent、Crawling Agent、Evaluation Agent、Review Agent、Orchestrator Agent、Output Agent。
 - 数据源与存储：
-  - Google Places API（Text Search / Details / Reviews / Distance Matrix）；
+  - **Apify Google Maps scraper**（店铺搜索 + 营业时间 + 评论抓取）；
+  - **SBB API**（公共交通 ETA：时长、交通方式 train/bus/tram、出发时间）；
   - Supabase（用户画像、偏好、基础日志）。
 
 ### 6.1 Provider 端与 Offer 模型（补充自 Provider Bid/Offer 版本）

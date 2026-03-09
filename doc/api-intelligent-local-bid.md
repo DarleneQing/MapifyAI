@@ -67,12 +67,38 @@
   "rating_count": 123,
   "recommendation_score": 0.92,
   "status": "open_now",
-  "eta_minutes": 15,
+  "transit": {
+    "duration_minutes": 22,
+    "transport_types": ["tram", "bus"],
+    "departure_time": "17:45",
+    "summary": "22 min — Tram 4 → Bus 33",
+    "connections": [
+      {
+        "transport_type": "tram",
+        "line": "4",
+        "departure_time": "17:45",
+        "arrival_time": "17:58",
+        "duration_minutes": 13,
+        "from_stop": "Zürich HB",
+        "to_stop": "Stauffacher"
+      },
+      {
+        "transport_type": "bus",
+        "line": "33",
+        "departure_time": "18:01",
+        "arrival_time": "18:07",
+        "duration_minutes": 6,
+        "from_stop": "Stauffacher",
+        "to_stop": "Schmiede Wiedikon"
+      }
+    ]
+  },
   "reason_tags": [
     "符合您的预算",
     "距离您仅 1.2km",
     "好评率较高"
-  ]
+  ],
+  "one_sentence_recommendation": "高性价比且交通便利的理发店，好评率极高，乘坐电车 12 分钟即达。"
 }
 ```
 
@@ -81,6 +107,15 @@
 - `open_now`
 - `closing_soon`
 - `closed`
+
+`transport_types` 为数组，包含本次行程涉及的所有交通方式，取值：
+
+- `train`
+- `bus`
+- `tram`
+- `walk`
+
+当数组长度 > 1 时，`connections` 数组包含每段换乘的详细信息（交通方式、线路、出发/到达时间、站点）。
 
 ---
 
@@ -106,12 +141,14 @@
     }
   },
   "review_summary": {
-    "positive_highlights": [
+    "advantages": [
       "理发师技术专业、态度友好",
-      "环境干净整洁"
+      "环境干净整洁",
+      "性价比高，定价合理"
     ],
-    "negative_highlights": [
-      "高峰期等待时间较长"
+    "disadvantages": [
+      "高峰期等待时间较长",
+      "个别技师服务态度有待改善"
     ],
     "star_reasons": {
       "five_star": [
@@ -239,24 +276,54 @@
 - 状态码：`200 OK`，SSE 事件示例：
 
 ```json
-// event: request_created
+// event: intent_parsed — Input Agent 完成意图解析
 {
-  "type": "request_created",
-  "request": { /* Request */ }
-}
-
-// event: partial_results
-{
-  "type": "partial_results",
+  "type": "intent_parsed",
   "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 子集 */ ]
+  "intent": { /* Intent JSON */ }
 }
 
-// event: completed
+// event: stores_crawled — Crawling Agent Sub-1 (Apify) 完成店铺搜索
+{
+  "type": "stores_crawled",
+  "request_id": "req_123",
+  "store_count": 18,
+  "results": [ /* PlaceSummary[] 基础信息，尚无评分和评论 */ ]
+}
+
+// event: transit_computed — Crawling Agent Sub-2 (SBB API) 完成交通计算
+{
+  "type": "transit_computed",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含 transit 字段 */ ]
+}
+
+// event: reviews_fetched — Review Agent 完成评论抓取与 LLM 摘要
+{
+  "type": "reviews_fetched",
+  "request_id": "req_123",
+  "reviews": [ /* { place_id, advantages, disadvantages } */ ]
+}
+
+// event: scores_computed — Evaluation Agent 完成评分计算
+{
+  "type": "scores_computed",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含 recommendation_score */ ]
+}
+
+// event: recommendations_ready — Orchestrator Agent 完成聚合与优化
+{
+  "type": "recommendations_ready",
+  "request_id": "req_123",
+  "results": [ /* PlaceSummary[] 含推荐理由 */ ]
+}
+
+// event: completed — Output Agent 完成，最终结果
 {
   "type": "completed",
   "request_id": "req_123",
-  "results": [ /* 最终 Top 10 */ ]
+  "results": [ /* 最终 Top 10，含 one_sentence_recommendation */ ]
 }
 ```
 
@@ -519,25 +586,85 @@
   "request_id": "req_123",
   "graph": {
     "nodes": [
-      { "id": "orchestrator", "type": "agent" },
-      { "id": "search_agent", "type": "agent" },
-      { "id": "realtime_validator", "type": "agent" }
+      { "id": "input_agent", "type": "agent" },
+      { "id": "crawling_agent_search", "type": "agent" },
+      { "id": "crawling_agent_transit", "type": "agent" },
+      { "id": "evaluation_agent", "type": "agent" },
+      { "id": "review_agent", "type": "agent" },
+      { "id": "orchestrator_agent", "type": "agent" },
+      { "id": "output_agent_ranking", "type": "agent" },
+      { "id": "output_agent_recommendation", "type": "agent" }
     ],
     "edges": [
-      { "from": "orchestrator", "to": "search_agent" },
-      { "from": "orchestrator", "to": "realtime_validator" }
+      { "from": "input_agent", "to": "crawling_agent_search" },
+      { "from": "input_agent", "to": "review_agent" },
+      { "from": "crawling_agent_search", "to": "crawling_agent_transit" },
+      { "from": "crawling_agent_transit", "to": "evaluation_agent" },
+      { "from": "evaluation_agent", "to": "orchestrator_agent" },
+      { "from": "review_agent", "to": "orchestrator_agent" },
+      { "from": "orchestrator_agent", "to": "output_agent_ranking" },
+      { "from": "orchestrator_agent", "to": "output_agent_recommendation" }
     ]
   },
   "steps": [
     {
-      "node_id": "search_agent",
+      "agent_name": "input_agent",
       "status": "success",
-      "duration_ms": 320,
-      "input_summary": "...",
-      "output_summary": "返回 25 个候选地点..."
+      "duration_ms": 850,
+      "input_summary": "帮我找附近三公里内评价不错的理发店...",
+      "output_summary": "解析为 haircut 类别，半径 3km，预算 medium"
+    },
+    {
+      "agent_name": "crawling_agent_search",
+      "status": "success",
+      "duration_ms": 2100,
+      "input_summary": "Apify Google Maps scraper: haircut, 47.37°N 8.54°E, 3km",
+      "output_summary": "返回 18 家店铺，过滤营业时间后剩余 12 家"
+    },
+    {
+      "agent_name": "crawling_agent_transit",
+      "status": "success",
+      "duration_ms": 1500,
+      "input_summary": "SBB API: 12 个目的地",
+      "output_summary": "已计算 12 条公共交通路线（tram/bus/train）"
+    },
+    {
+      "agent_name": "review_agent",
+      "status": "success",
+      "duration_ms": 3200,
+      "input_summary": "Apify review scraper: 12 家店铺",
+      "output_summary": "已生成 12 份优劣势摘要"
+    },
+    {
+      "agent_name": "evaluation_agent",
+      "status": "success",
+      "duration_ms": 200,
+      "input_summary": "12 家店铺，用户权重 price=0.3 distance=0.3 rating=0.3",
+      "output_summary": "评分完成，最高分 0.94"
+    },
+    {
+      "agent_name": "orchestrator_agent",
+      "status": "success",
+      "duration_ms": 1100,
+      "input_summary": "聚合 12 家店铺的评分、评论和交通数据",
+      "output_summary": "精炼为 Top 10 推荐，已生成推荐理由"
+    },
+    {
+      "agent_name": "output_agent_ranking",
+      "status": "success",
+      "duration_ms": 50,
+      "input_summary": "Top 10 推荐列表",
+      "output_summary": "排名列表已格式化"
+    },
+    {
+      "agent_name": "output_agent_recommendation",
+      "status": "success",
+      "duration_ms": 600,
+      "input_summary": "Top 10 推荐列表",
+      "output_summary": "已为每家店铺生成一句话推荐"
     }
   ],
-  "created_at": "..."
+  "created_at": "2026-03-09T14:30:00Z"
 }
 ```
 

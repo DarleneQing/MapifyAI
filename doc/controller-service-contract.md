@@ -33,9 +33,9 @@
 **接口**
 
 - 方法：`POST /api/requests`
-- 用途：前端输入自然语言查询后，创建 `StructuredRequest`，并触发 Multi‑Agent 推荐 / 报价排序流程。  
+- 用途：前端输入自然语言查询后，创建 `StructuredRequest`，并触发 6-Agent 推荐流程（Input → Crawling → Evaluation / Review → Orchestrator → Output）。  
   - `stream=false` 或缺省：一次性返回结果  
-  - `stream=true` 或 SSE：流式推送结果
+  - `stream=true` 或 SSE：流式推送结果（按 Agent 执行阶段逐步推送）
 - 请求体：`CreateRequestPayload`
   - 字段：`raw_input: str`、`location: LatLng`、`preferences: UserPreferences | None`
 - 非流式返回体建议：`RankedOffersResponse`
@@ -58,10 +58,17 @@
   - 创建并持久化一条 `StructuredRequest` 记录（PRD 4.1.0）
 - 非流式模式时：
   - `orchestrator_service.run_recommendation_pipeline(request_id: str) -> RankedOffersResponse`
-    - 触发整个 Multi‑Agent DAG，返回排好序的 `offers` + `request` + 可选 `trace`（PRD 4.1.2 / 4.1.4 / 4.1.5）
+    - 触发整个 6-Agent DAG（Input Agent → Crawling Agent → Evaluation Agent / Review Agent → Orchestrator Agent → Output Agent），返回排好序的 `offers` + `request` + 可选 `trace`（PRD 4.1.2 / 4.1.4 / 4.1.5）
 - 流式模式（SSE）时：
   - `orchestrator_service.start_recommendation_stream(request_id: str, emitter: SseEmitter)`
-    - 流式发送 `request_created` / `partial_results` / `completed` 事件，每个事件负载中包含当前 `RankedOffersResponse` 或其中的子集（API 文档 3.1）
+    - 按 Agent 执行阶段依次推送 7 个事件：
+      1. `intent_parsed` — Input Agent 完成意图解析
+      2. `stores_crawled` — Crawling Agent Sub-1（Apify Google Maps scraper）完成店铺搜索
+      3. `transit_computed` — Crawling Agent Sub-2（SBB API）完成交通 ETA 计算
+      4. `reviews_fetched` — Review Agent（Apify 评论抓取 + LLM 摘要）完成
+      5. `scores_computed` — Evaluation Agent 完成评分计算
+      6. `recommendations_ready` — Orchestrator Agent 完成聚合与推荐优化
+      7. `completed` — Output Agent 完成，最终结果（含排名列表 + 一句话推荐）
   - （可选）`sse_service.build_response(generator) -> StreamingResponse`
     - 封装 FastAPI 层的 SSE 响应
 
@@ -110,7 +117,7 @@
 
 - `request_service.ensure_request_exists(request_id: str)`
 - `orchestrator_service.attach_to_request_stream(request_id: str, emitter: SseEmitter)`
-  - 按 `api-intelligent-local-bid.md` 中的事件格式推送，事件负载中承载 `RankedOffersResponse` 或其子集（如当前 `offers` + `trace` 片段）
+  - 按 `api-intelligent-local-bid.md` 中的 7 阶段事件格式推送（`intent_parsed` → `stores_crawled` → `transit_computed` → `reviews_fetched` → `scores_computed` → `recommendations_ready` → `completed`），事件负载中承载 `RankedOffersResponse` 或其子集
 
 ---
 
@@ -135,9 +142,9 @@
 
 - `place_service.get_place_detail(place_id: str, request_id: str | None) -> PlaceDetail`
   - 内部由 Service 负责：
-    - 调用 Google Places Details / Reviews
-    - 评论聚合（PRD 4.1.3）
-    - 实时营业状态与可达性（PRD 4.1.4）
+    - 调用 **Apify Google Maps scraper** 获取店铺详情与营业时间
+    - 评论聚合：使用 **Apify Google Maps review scraper** 抓取评论，LLM 生成 `advantages` / `disadvantages` 摘要（PRD 4.1.3）
+    - 营业状态过滤与可达性：基于 **SBB API** 的公共交通 ETA（duration、transport_type、departure_time）（PRD 4.1.4）
     - 生成 `recommendation_reasons`（PRD 4.3.4）
 - （可选）`request_service.append_place_view_log(request_id, place_id)`
 
@@ -367,6 +374,7 @@
 
 - `trace_service.get_trace(request_id: str) -> AgentTrace`
   - 内部从存储或日志系统读取 DAG 节点、步骤信息等
+  - DAG 包含 8 个节点：`input_agent`、`crawling_agent_search`、`crawling_agent_transit`、`evaluation_agent`、`review_agent`、`orchestrator_agent`、`output_agent_ranking`、`output_agent_recommendation`
 - 在 Agent 执行阶段可复用现有工具：
   - `agents.trace.make_trace(request_id: str) -> dict`（创建空 `AgentTrace` 结构）
   - `agents.trace.add_step(trace: dict, agent: str, input_data: dict, output_data: dict, start_ms: float) -> dict`
@@ -411,19 +419,24 @@
   - `get_request(request_id: str) -> dict`（字段结构等价于 `StructuredRequest`）
   - `get_offers(request_id: str) -> list[dict]`（字段结构等价于 `Offer`）
   - `close_request(request_id: str) -> None`
-- `orchestrator_service` / `agents.graph`
+- `orchestrator_service` / `agents.graph`（6-Agent DAG 编排）
   - `run_recommendation_pipeline(payload: CreateRequestPayload) -> RankedOffersResponse`
+    - 内部调度：Input Agent → Crawling Agent（Sub-1 Apify + Sub-2 SBB）→ Evaluation Agent / Review Agent → Orchestrator Agent → Output Agent
   - （未来）`start_recommendation_stream(...)`
   - （未来）`attach_to_request_stream(...)`
-- `ranking`（已在 `services/ranking.py` 预留）
+- `crawling_service`（Crawling Agent 的外部 API 封装）
+  - `search_stores_apify(query: str, location: LatLng, radius_km: float) -> list[dict]` — 调用 Apify Google Maps scraper，返回店铺列表（含营业时间），过滤不匹配时间窗口的店铺
+  - `compute_transit_sbb(origin: LatLng, destinations: list[LatLng]) -> list[TransitInfo]` — 调用 SBB API，返回每个目的地的公共交通 ETA（duration_minutes、transport_types、departure_time、connections）
+- `ranking` / `evaluation_service`（Evaluation Agent）
   - `normalise(...)`
   - `score_offer(...)`
   - `rank_offers(providers: list[dict], prefs: UserPreferences | None = None) -> list[dict]`
 - `place_service`（未实现，设计阶段）
   - `get_place_detail(...) -> PlaceDetail`
   - `list_reviews(...) -> PagedReviews`
-- `reviews_service`（已在 `services/reviews.py` 预留）
-  - `summarise_reviews(provider_id: str, reviews: list[dict]) -> dict`
+- `reviews_service`（Review Agent — Apify 评论抓取 + LLM 摘要）
+  - `fetch_reviews_apify(place_ids: list[str]) -> dict[str, list[dict]]` — 批量抓取所有候选店铺的评论
+  - `summarise_reviews(provider_id: str, reviews: list[dict]) -> dict` — LLM 生成 advantages / disadvantages 摘要
   - `get_or_generate_summary(provider_id: str, reviews: list[dict]) -> dict`
 - `profile_service`
   - `get_or_create_user_preferences(user_id: str) -> UserPreferences`
