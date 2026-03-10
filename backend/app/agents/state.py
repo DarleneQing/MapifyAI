@@ -21,11 +21,14 @@ class PlannerState(TypedDict):
     # Populated by Feasibility Agent
     feasible_providers: list[dict]
 
-    # Populated by Ranking Agent (Backend-3)
+    # Populated by Evaluation Agent (ranking.py)
     ranked_offers: list[dict]
 
-    # Populated by Explanation Agent (Backend-3)
-    # (reasons are added directly into each offer dict)
+    # Populated by Review Agent (advantages/disadvantages per place)
+    review_summaries: list[dict]
+
+    # Populated by Output Ranking node (final PlaceSummary[] for API)
+    final_results: list[dict]
 
     # Trace (US-13)
     trace: dict              # AgentTrace as dict
