@@ -17,6 +17,9 @@ from langgraph.graph import StateGraph, END
 from app.agents.state import PlannerState
 from app.agents import intent_parser, retrieval, feasibility
 from app.agents.trace import make_trace
+from app.services.ranking import rank_offers
+from app.services.explanation import attach_explanations
+from app.models.schemas import UserPreferences
 
 
 # TODO: import ranking and explanation nodes once Backend-3 implements them
@@ -83,28 +86,19 @@ def _explain(p: dict, breakdown: dict, prefs: dict) -> list[str]:
 
 def _ranking_node(state: PlannerState) -> PlannerState:
     providers = state["feasible_providers"]
-    prefs = state.get("preferences") or {}
 
     if not providers:
         state["ranked_offers"] = []
         return state
 
-    prices = [_parse_price_midpoint(p.get("price_range", ""))
-              for p in providers]
-    dists = [p.get("distance_km", 0) for p in providers]
-    min_p, max_p = min(prices), max(prices)
-    min_d, max_d = min(dists), max(dists)
+    raw_prefs = state.get("preferences")
+    try:
+        prefs = UserPreferences(**raw_prefs) if isinstance(raw_prefs, dict) else UserPreferences()
+    except Exception:
+        prefs = UserPreferences()
 
-    scored = []
-    for p, price in zip(providers, prices):
-        score, breakdown = _score_provider(
-            p, prefs, min_p, max_p, min_d, max_d)
-        reasons = _explain(p, breakdown, prefs)
-        scored.append(
-            {**p, "score": score, "score_breakdown": breakdown, "reasons": reasons})
-
-    scored.sort(key=lambda x: x["score"], reverse=True)
-    state["ranked_offers"] = scored
+    ranked = rank_offers(providers, prefs)
+    state["ranked_offers"] = ranked
     return state
 
 
@@ -115,7 +109,16 @@ def after_feasibility(state: PlannerState) -> str:
 
 
 def _explanation_stub(state: PlannerState) -> PlannerState:
-    """Explanations are already attached in _ranking_node."""
+    if not state.get("ranked_offers"):
+        return state
+
+    raw_prefs = state.get("preferences")
+    try:
+        prefs = UserPreferences(**raw_prefs) if isinstance(raw_prefs, dict) else None
+    except Exception:
+        prefs = None
+
+    state["ranked_offers"] = attach_explanations(state["ranked_offers"], prefs)
     return state
 
 
@@ -126,7 +129,6 @@ def build_graph():
     graph.add_node("retrieval", retrieval.run)
     graph.add_node("feasibility", feasibility.run)
     graph.add_node("ranking", _ranking_node)
-    # TODO: swap for Backend-3 node
     graph.add_node("explanation", _explanation_stub)
 
     graph.set_entry_point("intent_parser")
