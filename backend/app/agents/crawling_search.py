@@ -163,8 +163,61 @@ def transform_apify_result(
     name = result.get("title") or result.get("name") or ""
     rating = result.get("totalScore") or result.get("rating") or 0.0
     review_count = result.get("reviewsCount") or result.get("reviewCount") or 0
-    price_range = result.get("price") or result.get("priceRange") or result.get("priceRangeText") or ""
+    price_range = (
+        result.get("price")
+        or result.get("priceRange")
+        or result.get("priceRangeText")
+        or ""
+    )
     url = result.get("url") or result.get("searchPageLoadedUrl") or ""
+
+    # Optional enrichment fields directly mirroring Apify Google Maps scraper output
+    social_profiles: dict[str, str] = {}
+    for source_key, label in [
+        ("facebookUrl", "facebook"),
+        ("instagramUrl", "instagram"),
+        ("twitterUrl", "twitter"),
+        ("tiktokUrl", "tiktok"),
+        ("youtubeUrl", "youtube"),
+        ("linkedinUrl", "linkedin"),
+    ]:
+        val = result.get(source_key)
+        if val:
+            social_profiles[label] = val
+
+    social_media_obj = result.get("socialMedia")
+    if isinstance(social_media_obj, dict):
+        for key, val in social_media_obj.items():
+            if val and key not in social_profiles:
+                social_profiles[key] = val
+
+    raw_distribution = result.get("reviewsPerRating") or result.get(
+        "reviewsPerScore"
+    )
+    review_distribution: dict[str, int] | None = None
+    if isinstance(raw_distribution, dict):
+        review_distribution = {
+            str(k): int(v) for k, v in raw_distribution.items()
+        }
+    elif isinstance(raw_distribution, list):
+        tmp: dict[str, int] = {}
+        for entry in raw_distribution:
+            if not isinstance(entry, dict):
+                continue
+            stars = entry.get("stars") or entry.get("rating")
+            count = entry.get("count") or entry.get("reviewsCount")
+            if stars is None or count is None:
+                continue
+            tmp[str(stars)] = int(count)
+        if tmp:
+            review_distribution = tmp
+
+    popular_times = result.get("popularTimesHistogram") or result.get(
+        "popularTimes"
+    )
+    questions_and_answers = result.get("questionsAndAnswers")
+    detailed_characteristics = result.get("detailedCharacteristics")
+    customer_updates = result.get("updatesFromCustomers")
 
     return {
         "id": result.get("placeId") or str(uuid.uuid4()),
@@ -175,12 +228,19 @@ def transform_apify_result(
         "rating": float(rating),
         "review_count": int(review_count),
         "price_range": price_range,
+        "average_rating": float(rating),
         "opening_hours": parse_apify_hours(result.get("openingHours")),
         "website_url": result.get("website"),
         "google_maps_url": url,
         "distance_km": round(
             haversine_km(user_lat, user_lng, store_lat, store_lng), 2
         ),
+        "social_profiles": social_profiles,
+        "review_distribution": review_distribution,
+        "popular_times": popular_times,
+        "questions_and_answers": questions_and_answers,
+        "customer_updates": customer_updates,
+        "detailed_characteristics": detailed_characteristics,
     }
 
 

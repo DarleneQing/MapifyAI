@@ -357,6 +357,62 @@ class TestTransformApifyResult:
 
 
 # ---------------------------------------------------------------------------
+# Tests: transform_apify_result enrichment fields
+# ---------------------------------------------------------------------------
+
+
+class TestTransformApifyResultEnrichment:
+    def test_enriches_with_social_profiles_and_meta_fields(self):
+        enriched_source = {
+            **APIFY_RESULT_OPEN,
+            "facebookUrl": "https://facebook.com/cafezurich",
+            "instagramUrl": "https://instagram.com/cafezurich",
+            "popularTimesHistogram": {"mon": [0, 10, 30]},
+            "reviewsPerRating": {"1": 2, "2": 3, "3": 10, "4": 40, "5": 75},
+            "questionsAndAnswers": [
+                {"question": "Do you have Wi‑Fi?", "answer": "Yes, free Wi‑Fi."}
+            ],
+            "detailedCharacteristics": ["Cozy", "Kid-friendly", "Outdoor seating"],
+            "updatesFromCustomers": [
+                {"text": "Now serving brunch on weekends", "language": "en"}
+            ],
+        }
+
+        result = transform_apify_result(
+            enriched_source, user_lat=47.3769, user_lng=8.5417
+        )
+
+        # Social profiles are normalised into a dedicated dict
+        assert "social_profiles" in result
+        assert result["social_profiles"]["facebook"] == "https://facebook.com/cafezurich"
+        assert (
+            result["social_profiles"]["instagram"]
+            == "https://instagram.com/cafezurich"
+        )
+
+        # Average rating is explicitly exposed (alias of rating)
+        assert result["average_rating"] == pytest.approx(result["rating"])
+
+        # Review distribution and popular times mirror Apify payload
+        assert result["review_distribution"] == {
+            "1": 2,
+            "2": 3,
+            "3": 10,
+            "4": 40,
+            "5": 75,
+        }
+        assert result["popular_times"] == {"mon": [0, 10, 30]}
+
+        # Q&A, customer updates and detailed characteristics are surfaced verbatim
+        assert result["questions_and_answers"] == enriched_source["questionsAndAnswers"]
+        assert result["customer_updates"] == enriched_source["updatesFromCustomers"]
+        assert (
+            result["detailed_characteristics"]
+            == enriched_source["detailedCharacteristics"]
+        )
+
+
+# ---------------------------------------------------------------------------
 # Tests: filter_by_opening_hours
 # ---------------------------------------------------------------------------
 
