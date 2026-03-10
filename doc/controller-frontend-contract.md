@@ -584,7 +584,63 @@
 
 ---
 
-## 9. 总结：前端主要使用的接口列表
+## 9. 设备级位置同步（匿名 MVP）
+
+> 目标：在没有登录体系的前提下，让前端通过设备/会话 ID 把“当前 GPS 位置”同步给后端，用于后续推荐、分析等。地图本身依然由前端基于 `navigator.geolocation.watchPosition` 等 API 直接驱动。
+
+### 9.1 前端职责
+
+前端在应用启动时：
+
+- 生成并持久化一个稳定的 `device_id`：
+  - 建议使用 `crypto.randomUUID()` 或等价方案；
+  - 存储在 `localStorage` 或 IndexedDB 中；
+  - 所有与位置相关的请求都携带同一个 `device_id`。
+- 使用浏览器 / 宿主环境的定位 API 获取实时位置：
+  - Web：`navigator.geolocation.watchPosition`；
+  - React Native / 小程序等：使用各自平台的持续定位接口；
+  - 监听位置变化（例如距离变化超过 50–100m 或固定时间间隔 N 秒）。
+
+当监听到位置发生“足够变化”时：
+
+- 调用 `PUT /api/location/current?device_id=<device_id>`，请求体为当前 `{ lat, lng, accuracy_m, timestamp }`。
+- 地图视图使用最新的前端本地坐标即时更新（不依赖后端）。
+
+### 9.2 接口约定
+
+- **URL（更新）**：`PUT /api/location/current?device_id=<device_id>`
+  - 请求体：  
+    - `lat: number`  
+    - `lng: number`  
+    - `accuracy_m?: number`  
+    - `timestamp?: string`（ISO，前端可选）
+  - 响应体（简化）：  
+    - `device_id: string`  
+    - `lat: number`  
+    - `lng: number`  
+    - `accuracy_m?: number`  
+    - `updated_at: string`（由后端生成，ISO）
+
+- **URL（读取，可选调试用）**：`GET /api/location/current?device_id=<device_id>`
+  - 成功返回：同上 `DeviceLocation` 结构；
+  - 404：当前设备尚未上报位置（前端可以据此提示用户开启定位）。
+
+> 注意：  
+> - 搜索请求 `POST /api/requests` 在 MVP 阶段仍然要求前端显式传入 `location: { lat, lng }`，避免引入隐式依赖。  
+> - 设备级位置同步是“辅助通道”，为未来的隐式位置回退、分析、个性化留接口，不改变现有搜索契约。
+
+### 9.3 对前端工程的建议
+
+- 在前端项目中封装一个统一的 `useDeviceLocation` hook / store：
+  - 负责：
+    - 初始化和持久化 `device_id`；
+    - 管理 `currentLocation` 状态；
+    - 节流/防抖向 `/api/location/current` 上报；
+  - 地图组件、搜索表单都从该 hook 中读取当前 `lat/lng`，保证一致性。
+
+---
+
+## 10. 总结：前端主要使用的接口列表
 
 - 搜索 & 推荐：
   - `POST /api/requests`（创建 Request + 一次性或流式结果）
@@ -597,6 +653,9 @@
   - `POST /api/profile/cold-start-survey`
   - `GET /api/profile`
   - `PUT /api/profile`
+- 设备级位置同步（匿名 MVP）：
+  - `PUT /api/location/current`
+  - `GET /api/location/current`
 - Provider 竞价（可选）：
   - `GET /api/requests/{request_id}/offers`
   - `GET /api/requests/{request_id}/offers/stream`

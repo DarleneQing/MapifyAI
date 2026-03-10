@@ -21,6 +21,8 @@
   - 路由前缀：`/api/traces`
 - `meta_controller`（隐私与数据说明）
   - 路由前缀：`/api/meta`
+- `location_controller`（设备级位置同步，匿名 MVP）
+  - 路由前缀：`/api/location`
 
 下面逐个接口说明 Controller 需要的函数，以及需要调用哪些 Service 函数（由其他两位同学实现）。
 
@@ -403,7 +405,46 @@
 
 ---
 
-## 8. 小结：Controller 负责人需要对齐的 Service 套件
+## 8. 设备级位置同步接口（Location）
+
+### 8.1 更新 / 查询当前设备位置
+
+**接口**
+
+- 方法：`PUT /api/location/current`
+  - 查询参数：`device_id: str`（必填，设备/会话 ID）
+  - 请求体：`DeviceLocationPayload`
+    - 字段：`lat: float`、`lng: float`、`accuracy_m: float | None`、`timestamp: datetime | None`
+- 方法：`GET /api/location/current`
+  - 查询参数：`device_id: str`（必填）
+
+**Controller 函数**
+
+- 模块：`backend/app/api/location.py`
+- 函数名建议：
+  - `put_current_location`
+  - `get_current_location`
+- 职责：
+  - 解析 `device_id` 查询参数（缺失时返回 `400`）
+  - 使用 Pydantic 校验请求体（`DeviceLocationPayload`）
+  - 调用 service 层保存 / 读取对应设备的最新位置
+  - 按 `DeviceLocation` 模型返回 JSON
+
+**需要调用的 Service 函数**
+
+- Service 模块：`location_service`
+  - `save_device_location(device_id: str, payload: DeviceLocationPayload) -> DeviceLocation`
+    - 负责 upsert 设备当前地点，设置服务端 `updated_at`
+  - `get_device_location(device_id: str) -> DeviceLocation | None`
+    - 返回当前记录的设备位置，若不存在则返回 `None`
+
+> 说明：
+> - MVP 实现可以使用进程内存（`InMemory`）存储，为未来迁移到 Redis / 数据库预留实现空间；
+> - 当前版本中，`requests_controller` 仍然显式依赖请求体中的 `location: LatLng`，不会隐式从 `location_service` 读取，以保持搜索契约简单、可预测。
+
+---
+
+## 9. 小结：Controller 负责人需要对齐的 Service 套件
 
 结合当前 `schemas.py` 与 `backend/app` 目录中已有/预期的实现，从你视角，需要其他两位同学提供的 Service 包大致包括（名称可协商，但职责要清晰）：
 
@@ -452,6 +493,9 @@
   - `get_trace(request_id: str) -> AgentTrace`
 - `meta_service`
   - `get_privacy_meta() -> PrivacyMeta`（未来可在 `schemas.py` 中增加）
+- `location_service`
+  - `save_device_location(device_id: str, payload: DeviceLocationPayload) -> DeviceLocation`
+  - `get_device_location(device_id: str) -> DeviceLocation | None`
 - `auth_service`（横切关注）
   - `get_current_user_id() -> str | None`
   - `get_current_provider_id() -> str | None`

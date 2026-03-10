@@ -235,6 +235,20 @@
 
 ---
 
+#### 2.7 DeviceLocation 模型（匿名 MVP - 设备级位置）
+
+```json
+{
+  "device_id": "device_123",
+  "lat": 47.3769,
+  "lng": 8.5417,
+  "accuracy_m": 12.3,
+  "updated_at": "2026-03-10T10:00:00Z"
+}
+```
+
+---
+
 ### 3. 搜索 & 推荐接口
 
 #### 3.1 创建搜索请求 +（可选）流式结果
@@ -670,32 +684,74 @@
 
 ---
 
-### 8. 隐私与数据使用（US-28）
+### 8. 位置同步接口（匿名 MVP - 设备级）
 
-#### 8.1 获取隐私说明
+#### 8.1 更新当前设备位置
 
-**GET** `/api/meta/privacy`
+**PUT** `/api/location/current`
+
+**查询参数：**
+
+- `device_id`: string（必填；前端生成的稳定设备/会话 ID，例如保存在 `localStorage` 中的 UUID）
+
+**请求体：**
+
+```json
+{
+  "lat": 47.3769,
+  "lng": 8.5417,
+  "accuracy_m": 12.3,
+  "timestamp": "2026-03-10T10:00:00Z"
+}
+```
 
 **响应：**
 
 ```json
 {
-  "permissions": [
-    {
-      "name": "location",
-      "description": "用于推荐离你最近、当前营业的商家",
-      "required": true
-    }
-  ],
-  "data_collected": [
-    "偏好配置（预算、权重等）",
-    "画像标签（学生 / 上班族等）",
-    "基础日志（Request id, trace id, 错误码）"
-  ],
-  "data_not_collected": [
-    "敏感个人身份信息",
-    "精确历史轨迹（MVP 不存储）"
-  ]
+  "device_id": "device_123",
+  "lat": 47.3769,
+  "lng": 8.5417,
+  "accuracy_m": 12.3,
+  "updated_at": "2026-03-10T10:00:00Z"
+}
+```
+
+#### 8.2 获取当前设备位置
+
+**GET** `/api/location/current`
+
+**查询参数：**
+
+- `device_id`: string（必填）
+
+**成功响应（存在位置数据）：**
+
+```json
+{
+  "device_id": "device_123",
+  "lat": 47.3769,
+  "lng": 8.5417,
+  "accuracy_m": 12.3,
+  "updated_at": "2026-03-10T10:00:00Z"
+}
+```
+
+**错误响应示例：**
+
+- 未提供 `device_id`：
+
+```json
+{
+  "detail": "device_id query parameter is required"
+}
+```
+
+- 未找到对应位置：
+
+```json
+{
+  "detail": "Location not found for this device_id"
 }
 ```
 
