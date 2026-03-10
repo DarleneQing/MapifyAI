@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import requests, offers, providers, users, places
+from app.api import requests, offers, providers, users, places, location
 from app.config import SUPABASE_URL
 from app.services.marketplace_memory import InMemoryMarketplace
 from app.services.orchestrator_service import OrchestratorService
@@ -51,6 +51,7 @@ app.include_router(offers.router)
 app.include_router(providers.router)
 app.include_router(users.router)
 app.include_router(places.router)
+app.include_router(location.router)
 
 
 @app.get("/")

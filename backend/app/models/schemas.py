@@ -115,3 +115,23 @@ class RankedOffersResponse(BaseModel):
     request: StructuredRequest
     offers: list[Offer]
     trace: AgentTrace | None = None
+
+
+# ---------------------------------------------------------------------------
+# Device-scoped location (anonymous MVP)
+# ---------------------------------------------------------------------------
+
+
+class DeviceLocationPayload(BaseModel):
+    lat: float
+    lng: float
+    accuracy_m: float | None = None
+    timestamp: datetime | None = None
+
+
+class DeviceLocation(BaseModel):
+    device_id: str
+    lat: float
+    lng: float
+    accuracy_m: float | None = None
+    updated_at: datetime

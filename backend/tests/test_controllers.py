@@ -706,3 +706,76 @@ def test_get_trace_returns_all_six_agent_pipeline_nodes(monkeypatch):
     assert all(s["status"] == "success" for s in body["steps"])
     assert len(body["steps"]) == 8
 
+
+def test_put_location_current_requires_device_id():
+    """
+    PUT /api/location/current without device_id should return 400.
+    """
+    payload = {
+        "lat": 47.3769,
+        "lng": 8.5417,
+        "accuracy_m": 10.5,
+    }
+
+    response = client.put("/api/location/current", json=payload)
+
+    assert response.status_code == 400
+    body = response.json()
+    assert body["detail"] == "device_id query parameter is required"
+
+
+def test_put_location_current_stores_and_returns_location():
+    """
+    PUT /api/location/current with device_id should return stored location metadata.
+    """
+    payload = {
+        "lat": 47.3769,
+        "lng": 8.5417,
+        "accuracy_m": 12.3,
+        "timestamp": "2026-03-10T10:00:00Z",
+    }
+
+    response = client.put("/api/location/current?device_id=device-123", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["device_id"] == "device-123"
+    assert body["lat"] == pytest.approx(payload["lat"])
+    assert body["lng"] == pytest.approx(payload["lng"])
+    assert body["accuracy_m"] == pytest.approx(payload["accuracy_m"])
+    assert "updated_at" in body
+
+
+def test_get_location_current_returns_last_known_location():
+    """
+    GET /api/location/current returns the last stored location for a device_id.
+    """
+    put_payload = {
+        "lat": 47.4,
+        "lng": 8.5,
+        "accuracy_m": 20.0,
+    }
+    put_resp = client.put(
+        "/api/location/current?device_id=device-xyz", json=put_payload
+    )
+    assert put_resp.status_code == 200
+
+    get_resp = client.get("/api/location/current?device_id=device-xyz")
+    assert get_resp.status_code == 200
+    body = get_resp.json()
+    assert body["device_id"] == "device-xyz"
+    assert body["lat"] == pytest.approx(put_payload["lat"])
+    assert body["lng"] == pytest.approx(put_payload["lng"])
+    assert body["accuracy_m"] == pytest.approx(put_payload["accuracy_m"])
+
+
+def test_get_location_current_not_found_returns_404():
+    """
+    GET /api/location/current for unknown device_id should return 404.
+    """
+    response = client.get("/api/location/current?device_id=unknown-device")
+
+    assert response.status_code == 404
+    body = response.json()
+    assert body["detail"] == "Location not found for this device_id"
+
