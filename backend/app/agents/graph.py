@@ -241,7 +241,7 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
     except Exception:
         prefs = None
 
-    ranked_with_reasons = attach_explanations(state["ranked_offers"], prefs)
+    ranked_with_reasons = attach_explanations(state["ranked_offers"][:10], prefs)
 
     results = []
     for p in ranked_with_reasons:
