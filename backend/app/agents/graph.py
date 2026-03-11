@@ -62,8 +62,10 @@ def _transit_calculator_node(state: PlannerState) -> PlannerState:
 # Node: evaluation_agent  (hard score calculation via ranking.py)
 # ---------------------------------------------------------------------------
 
-def _evaluation_node(state: PlannerState) -> PlannerState:
-    start = time.time() * 1000
+def _evaluation_node(state: PlannerState) -> dict:
+    # Returns only the key this node owns — required for parallel execution.
+    # Returning the full state would cause LangGraph to see multiple writers
+    # on every key when evaluation_agent and review_agent run simultaneously.
     from app.services.ranking import rank_offers
 
     providers = state["candidate_providers"]
@@ -74,15 +76,7 @@ def _evaluation_node(state: PlannerState) -> PlannerState:
         prefs = None
 
     ranked = rank_offers(providers, prefs)
-    state["ranked_offers"] = ranked
-    state["trace"] = add_step(
-        state["trace"],
-        agent="evaluation_agent",
-        input_data={"providers": len(providers)},
-        output_data={"ranked": len(ranked)},
-        start_ms=start,
-    )
-    return state
+    return {"ranked_offers": ranked}
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +88,8 @@ def _evaluation_node(state: PlannerState) -> PlannerState:
 #       and store them in state["review_summaries"].
 # ---------------------------------------------------------------------------
 
-def _review_node(state: PlannerState) -> PlannerState:
-    start = time.time() * 1000
+def _review_node(state: PlannerState) -> dict:
+    # Returns only the key this node owns — required for parallel execution.
     providers = state["candidate_providers"]
 
     summaries = []
@@ -106,15 +100,7 @@ def _review_node(state: PlannerState) -> PlannerState:
             "disadvantages": [],
         })
 
-    state["review_summaries"] = summaries
-    state["trace"] = add_step(
-        state["trace"],
-        agent="review_agent",
-        input_data={"providers": len(providers)},
-        output_data={"summaries": len(summaries)},
-        start_ms=start,
-    )
-    return state
+    return {"review_summaries": summaries}
 
 
 # ---------------------------------------------------------------------------
@@ -193,9 +179,11 @@ Return a JSON object:
         )
         result = json.loads(response.choices[0].message.content)
         recs = result.get("recommendations", [])
-        rec_map = {r["name"]: r.get("one_sentence_recommendation", "") for r in recs}
+        rec_map = {r["name"]: r.get(
+            "one_sentence_recommendation", "") for r in recs}
         for p in ranked:
-            p["one_sentence_recommendation"] = rec_map.get(p.get("name", ""), "")
+            p["one_sentence_recommendation"] = rec_map.get(
+                p.get("name", ""), "")
     except Exception:
         for p in ranked:
             p.setdefault("one_sentence_recommendation", "")
