@@ -18,9 +18,6 @@ class PlannerState(TypedDict):
     # retry count for feasibility check, how many times we've widened the radius
     retry_count: int
 
-    # Populated by Feasibility Agent
-    feasible_providers: list[dict]
-
     # Populated by Evaluation Agent (ranking.py)
     ranked_offers: list[dict]
 

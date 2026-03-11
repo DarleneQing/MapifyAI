@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -lt /Users/rosydai/Desktop/hackthon/backend/app/agents/*.py)"
+      "Bash(ls -lt /Users/rosydai/Desktop/hackthon/backend/app/agents/*.py)",
+      "Bash(grep -E \"\\\\.py$\")"
     ]
   }
 }
