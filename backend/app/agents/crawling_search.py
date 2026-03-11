@@ -241,6 +241,7 @@ def transform_apify_result(
         "questions_and_answers": questions_and_answers,
         "customer_updates": customer_updates,
         "detailed_characteristics": detailed_characteristics,
+        "reviews": result.get("reviews") or [],
     }
 
 

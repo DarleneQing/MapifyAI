@@ -32,7 +32,7 @@ class RequestService:
 
         structured = StructuredRequest(
             id=request_id,
-            raw_input=payload.raw_input,
+            raw_input=payload.get_raw_input(),
             category="general",
             requested_time=now,
             location=payload.location,

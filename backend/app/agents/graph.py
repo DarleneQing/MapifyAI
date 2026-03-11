@@ -90,16 +90,9 @@ def _evaluation_node(state: PlannerState) -> dict:
 
 def _review_node(state: PlannerState) -> dict:
     # Returns only the key this node owns — required for parallel execution.
+    from app.services.reviews import summarise_providers
     providers = state["candidate_providers"]
-
-    summaries = []
-    for p in providers:
-        summaries.append({
-            "place_id": p.get("id", ""),
-            "advantages": [],
-            "disadvantages": [],
-        })
-
+    summaries = summarise_providers(providers)
     return {"review_summaries": summaries}
 
 
