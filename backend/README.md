@@ -1,6 +1,6 @@
 # Backend — LocalBid
 
-Multi-agent service marketplace backend. Three devs, parallel tracks.
+Multi-agent recommendation pipeline for local services in Zurich. Built with FastAPI + LangGraph.
 
 ---
 
@@ -11,11 +11,13 @@ Multi-agent service marketplace backend. Three devs, parallel tracks.
 | Framework | FastAPI (Python 3.11+) |
 | Agent orchestration | LangGraph |
 | LLM | OpenAI GPT-4o |
-| Database + Realtime | Supabase (PostgreSQL) |
+| Web scraping | Apify (`compass/crawler-google-places`) |
+| Transit | SBB OpenData API (`transport.opendata.ch`) |
+| Database | Supabase (PostgreSQL) — optional, in-memory fallback |
 
 ---
 
-## Setup (everyone does this)
+## Setup
 
 ```bash
 cd backend
@@ -27,15 +29,58 @@ cp .env.example .env            # then fill in your values
 uvicorn app.main:app --reload
 ```
 
-Open http://localhost:8000/docs to verify the server is running.
+Open `http://localhost:8000/docs` to explore all endpoints via Swagger UI.
 
-**.env values needed** — ask Backend-2 for Supabase keys once they set up the project:
+### .env values
+
 ```
-OPENAI_API_KEY=sk-...
-SUPABASE_URL=https://xxxx.supabase.co
+OPENAI_API_KEY=sk-...                   # required — LLM calls
+APIFY_API_TOKEN=apify_api_...           # optional — real Google Maps scraping (falls back to seed data)
+SUPABASE_URL=https://xxxx.supabase.co   # optional — persistent storage (falls back to in-memory)
 SUPABASE_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
+
+---
+
+## Quick Test
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/requests/ \
+  -H "Content-Type: application/json" \
+  -d '{"query": "find a good haircut near me", "location": {"lat": 47.3769, "lng": 8.5417}}' \
+  | python3 -m json.tool
+```
+
+---
+
+## Pipeline
+
+```
+intent_parser → crawling_search → transit_calculator
+                                          │
+                            ┌─────────────┴─────────────┐
+                            ▼                           ▼
+                    evaluation_agent            review_agent
+                            │                           │
+                            └─────────────┬─────────────┘
+                                          ▼
+                                 orchestrator_agent
+                                          │
+                                   output_ranking → END
+```
+
+`evaluation_agent` and `review_agent` run in parallel via LangGraph's fan-out.
+
+| Agent | Role |
+|---|---|
+| **intent_parser** | NL → structured request (category, time, radius, constraints) via GPT-4o |
+| **crawling_search** | Apify Google Maps scraper — finds real businesses, filters by opening hours |
+| **transit_calculator** | SBB transit ETA per candidate — drops unreachable providers, retries with wider radius |
+| **evaluation_agent** | Weighted score: price + distance + rating, normalised to [0,1] |
+| **review_agent** | Summarises Google reviews (or generates from structured data) into advantages/disadvantages |
+| **orchestrator_agent** | GPT-4o synthesises user intent + scores + reviews → `one_sentence_recommendation` |
+| **output_ranking** | Formats top-10 into `PlaceSummary[]` for the API |
 
 ---
 
@@ -44,214 +89,90 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
 backend/
 ├── app/
-│   ├── main.py                      # FastAPI entry point — do not edit
-│   ├── config.py                    # Env vars — do not edit
+│   ├── main.py                      # FastAPI entry point + service wiring
+│   ├── config.py                    # Env vars
+│   ├── wiring.py                    # Dependency injection at startup
 │   │
 │   ├── models/
-│   │   ├── schemas.py               # ⚠️ Shared contracts — read before coding
+│   │   ├── schemas.py               # Shared Pydantic models (read before coding)
 │   │   └── db.py                    # Supabase client singleton
 │   │
-│   ├── agents/                      # ← Backend-1
-│   │   ├── state.py                 # LangGraph state schema
-│   │   ├── trace.py                 # Agent trace logger utility
-│   │   ├── intent_parser.py         # NL → structured request (TODO)
-│   │   ├── retrieval.py             # Geo + category DB query (TODO)
-│   │   ├── feasibility.py           # Opening hours + ETA filter (TODO)
-│   │   ├── planner.py               # Pipeline order (TODO)
-│   │   └── graph.py                 # LangGraph wiring (TODO)
+│   ├── agents/                      # LangGraph pipeline nodes
+│   │   ├── state.py                 # PlannerState TypedDict
+│   │   ├── trace.py                 # Agent trace logger
+│   │   ├── graph.py                 # LangGraph wiring — pipeline entry point
+│   │   ├── intent_parser.py         # NL → structured request (GPT-4o)
+│   │   ├── crawling_search.py       # Apify Google Maps scraper
+│   │   ├── transit_calculator.py    # SBB transit ETA + reachability filter
+│   │   └── retrieval.py             # Seed-file fallback (used when no Apify token)
 │   │
-│   ├── api/                         # ← Backend-2
+│   ├── api/
 │   │   ├── requests.py              # POST /api/requests, GET /api/requests/{id}
+│   │   ├── places.py                # GET /api/places/{id}
 │   │   ├── offers.py                # POST /api/offers
 │   │   ├── providers.py             # GET /api/providers/{id}
-│   │   └── users.py                 # GET/PUT /api/users/me
+│   │   ├── users.py                 # GET/PUT /api/users/me
+│   │   └── location.py              # GET /api/location
 │   │
-│   ├── services/
-│   │   ├── geo.py                   # ✅ Complete — haversine + ETA utils
-│   │   ├── marketplace.py           # ← Backend-2: DB CRUD logic
-│   │   ├── ranking.py               # ← Backend-3: score formula
-│   │   ├── explanation.py           # ← Backend-3: top-3 reasons per offer
-│   │   └── reviews.py               # ← Backend-3: review summariser (stretch)
-│   │
-│   └── realtime/
-│       └── events.py                # ← Backend-2: Supabase broadcast
+│   └── services/
+│       ├── ranking.py               # Weighted score formula
+│       ├── explanation.py           # Top-3 reason tags per offer
+│       ├── reviews.py               # Review summariser (Apify reviews + GPT-4o)
+│       ├── swiss_transit.py         # SBB API client
+│       ├── apify_search.py          # Apify client wrapper
+│       ├── geo.py                   # Haversine + ETA utils
+│       ├── orchestrator_service.py  # Runs pipeline, formats response
+│       ├── request_service.py       # Creates and persists requests
+│       ├── marketplace.py           # Supabase CRUD
+│       ├── marketplace_memory.py    # In-memory fallback (no Supabase needed)
+│       └── trace.py                 # Agent trace store
 │
 ├── seed/
-│   ├── zurich_providers.json        # ← Backend-3: expand to 20+ providers
-│   └── seed.py                      # Load script (run once after DB is ready)
+│   ├── zurich_providers.json        # Seed data (used when no Apify token)
+│   └── seed.py                      # Load script
 │
 ├── tests/
-│   ├── test_agents.py               # Backend-1 tests
-│   └── test_ranking.py              # Backend-3 tests
+│   ├── test_agents.py
+│   └── test_ranking.py
 │
 ├── requirements.txt
-└── .env                             # ← never commit this
+└── .env                             # never commit this
 ```
 
 ---
 
-## Shared Contract — read `app/models/schemas.py` first
+## API Response Format
 
-Key types everyone passes around:
+`POST /api/requests/` returns:
 
-| Type | Description |
-|---|---|
-| `StructuredRequest` | Parsed user intent (category, time, location, radius, constraints) |
-| `Provider` | A service provider with location, hours, rating, price range |
-| `Offer` | A provider bid on a request — has price, ETA, score, reasons |
-| `UserPreferences` | Weight sliders (price / distance / rating) |
-| `AgentTrace` | Full agent execution log for the debug panel |
-
-Do not change `schemas.py` without telling the other two devs.
-
----
-
-## Backend-1 — Agent Orchestration (Qing)
-
-**Goal:** user types a sentence → pipeline runs → ranked offers come out.
-
-**Priority order:**
-
-| # | File | Task | Unblocks |
-|---|---|---|---|
-| 1 | `agents/intent_parser.py` | Uncomment OpenAI call, replace stub | Everything |
-| 2 | `agents/graph.py` | Verify LangGraph compiles and runs end-to-end | API layer |
-| 3 | `api/requests.py` | Call `run_pipeline()`, return `RankedOffersResponse` | Frontend |
-| 4 | `agents/retrieval.py` | Real DB query (needs Backend-2's Supabase schema first) | Real data |
-| 5 | `agents/feasibility.py` | Implement `_check_provider()` opening hours logic | Filtering |
-| 6 | `agents/graph.py` | Swap ranking/explanation stubs for Backend-3's real functions | Scores |
-
-**How to test intent_parser without DB:**
-```python
-# run from backend/
-python -c "
-from app.agents.graph import run_pipeline
-state = run_pipeline('I need a haircut near Zurich HB in 2 hours', {'lat': 47.378, 'lng': 8.540})
-print(state['structured_request'])
-"
+```json
+{
+  "request": {
+    "id": "uuid",
+    "raw_input": "find a good haircut near me",
+    "category": "haircut",
+    "requested_time": "2026-03-11T15:00:00+01:00",
+    "location": { "lat": 47.3769, "lng": 8.5417 },
+    "radius_km": 2.0
+  },
+  "results": [
+    {
+      "place_id": "ChIJ...",
+      "name": "Barber Studio Zürich",
+      "address": "Langstrasse 12, 8004 Zürich",
+      "distance_km": 0.55,
+      "price_level": "medium",
+      "rating": 4.9,
+      "rating_count": 275,
+      "recommendation_score": 0.99,
+      "status": "open_now",
+      "transit": { "duration_minutes": 3, "transport_types": ["tram"] },
+      "reason_tags": ["Rating: 4.9/5", "Distance: 0.6 km"],
+      "one_sentence_recommendation": "Highly rated and closest option, just 0.55 km away."
+    }
+  ]
+}
 ```
-
----
-
-## Backend-2 — Marketplace + Realtime
-
-**Goal:** database is set up, API endpoints work, new offers appear in real-time.
-
-**Priority order:**
-
-| # | File | Task | Unblocks |
-|---|---|---|---|
-| 1 | Supabase dashboard | Create project, run SQL schema below, share `.env` values | Everyone |
-| 2 | `seed/seed.py` | Run seed script after schema is created | Real data |
-| 3 | `services/marketplace.py` | Implement all 5 functions (`persist_request`, `get_offers`, etc.) | API layer |
-| 4 | `api/requests.py` | Wire GET endpoints to `marketplace.py` | Frontend |
-| 5 | `api/offers.py` | Provider bid submission endpoint | Provider UI |
-| 6 | `api/providers.py` | Provider detail endpoint | Detail page |
-| 7 | `realtime/events.py` | Supabase broadcast on new offer | Real-time UI |
-| 8 | `api/users.py` | Preferences save/load | Stretch |
-
-**Supabase SQL schema — run this in the Supabase SQL editor:**
-
-```sql
-create table providers (
-  id text primary key,
-  name text not null,
-  category text not null,
-  location jsonb not null,
-  address text,
-  rating float default 0,
-  review_count int default 0,
-  price_range text,
-  opening_hours jsonb,
-  website_url text,
-  google_maps_url text,
-  reviews jsonb
-);
-
-create table requests (
-  id text primary key,
-  raw_input text,
-  category text,
-  requested_time timestamptz,
-  location jsonb,
-  radius_km float default 5,
-  constraints jsonb default '{}',
-  status text default 'open',
-  trace jsonb,
-  created_at timestamptz default now()
-);
-
-create table offers (
-  id text primary key,
-  request_id text references requests(id),
-  provider_id text references providers(id),
-  price float,
-  eta_minutes int,
-  slot_time timestamptz,
-  notes text,
-  score float,
-  score_breakdown jsonb,
-  reasons jsonb,
-  time_label text,
-  created_at timestamptz default now()
-);
-
-create table users (
-  id text primary key,
-  weight_price float default 0.33,
-  weight_distance float default 0.33,
-  weight_rating float default 0.34
-);
-```
-
-**After creating the schema**, share with teammates:
-- `SUPABASE_URL`
-- `SUPABASE_KEY` (anon)
-- `SUPABASE_SERVICE_ROLE_KEY`
-
----
-
-## Backend-3 — Ranking + Explainability + Seed Data
-
-**Goal:** offers are scored and sorted with human-readable reasons; rich seed data for demo.
-
-**Priority order:**
-
-| # | File | Task | Unblocks |
-|---|---|---|---|
-| 1 | `seed/zurich_providers.json` | Expand to 20+ providers across categories (haircut, massage, dentist, repair, etc.) | Realistic demo |
-| 2 | `services/ranking.py` | Implement `normalise()` + `rank_offers()` | Sorted list (US-04) |
-| 3 | `services/explanation.py` | Implement `explain_offer()` → top-3 reasons | Explanations (US-05) |
-| 4 | `agents/graph.py` | Tell Backend-1 to swap stubs once ranking + explanation are ready | Pipeline complete |
-| 5 | `services/ranking.py` | Accept `UserPreferences` weights for personalisation | Stretch (US-08) |
-| 6 | `services/reviews.py` | OpenAI review summariser | Stretch (US-10) |
-
-**Ranking formula (implement this):**
-```
-score = w_price    * (1 - normalise(price, min, max))
-      + w_distance * (1 - normalise(distance, min, max))
-      + w_rating   * normalise(rating - 1, 0, 4)
-```
-Default weights: `w_price = w_distance = w_rating = 0.33`
-
-**Seed data format** — follow the existing 5 providers in `zurich_providers.json`.
-Categories needed: `haircut`, `massage`, `dentist`, `repair`, `nails`, `physiotherapy`.
-Use real Zurich street names and realistic lat/lng (Zurich centre ≈ `47.376, 8.541`).
-
----
-
-## Integration Checklist
-
-Use this to track when things are ready to connect:
-
-- [ ] Backend-2: Supabase schema created + `.env` values shared
-- [ ] Backend-3: seed data expanded + `seed.py` run
-- [ ] Backend-1: `intent_parser.py` real LLM call working
-- [ ] Backend-1: `retrieval.py` querying real DB
-- [ ] Backend-3: `rank_offers()` implemented
-- [ ] Backend-1: ranking stub in `graph.py` swapped for real call
-- [ ] Backend-2: `POST /api/requests` end-to-end working
-- [ ] All: `GET /api/requests/{id}/offers` returns ranked list to frontend
 
 ---
 
