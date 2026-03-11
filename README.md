@@ -2,8 +2,7 @@
 
 
 ## Agent Pipeline
-
-![Agent Workflow](agent_workflow.png)
+<img src="agent_workflow.png" alt="Agent Workflow" width="300"/>
 
 The pipeline runs as a LangGraph state machine. Each box is an agent node; arrows show data flow.
 
