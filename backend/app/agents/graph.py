@@ -16,9 +16,9 @@ Architecture:
                                             │
                                            END
 
-evaluation_agent and review_agent are conceptually parallel — both receive the
-pre-selection list produced by transit_calculator. They run sequentially here
-for simplicity; upgrading to true LangGraph fan-out is a separate step.
+evaluation_agent and review_agent run in parallel via LangGraph's Send API —
+both receive the pre-selection list from transit_calculator simultaneously.
+LangGraph merges their state writes before orchestrator_agent runs.
 
 The orchestrator_agent is the LLM brain: it reads user intent +
 hard scores (evaluation_agent) + review summaries (review_agent) and
@@ -30,7 +30,6 @@ import json
 import time
 
 from langgraph.graph import StateGraph, END
-
 from app.agents import intent_parser
 from app.agents.state import PlannerState
 from app.agents.trace import add_step, make_trace
@@ -296,11 +295,13 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
 # Retry crawling_search with wider radius if no candidates remain
 # ---------------------------------------------------------------------------
 
-def _after_transit(state: PlannerState) -> str:
+def _after_transit(state: PlannerState):
     if not state["candidate_providers"] and state.get("retry_count", 0) < 2:
         state["retry_count"] = state.get("retry_count", 0) + 1
         return "retry"
-    return "evaluation"
+    # Fan-out: return a list of strings so LangGraph runs both nodes in parallel
+    # AND the static graph compiler can see both edges for draw_mermaid()
+    return ["evaluation_agent", "review_agent"]
 
 
 # ---------------------------------------------------------------------------
@@ -324,11 +325,14 @@ def build_graph():
     graph.add_conditional_edges(
         "transit_calculator",
         _after_transit,
-        {"retry": "crawling_search", "evaluation": "evaluation_agent"},
+        {
+            "retry": "crawling_search",
+            "evaluation_agent": "evaluation_agent",
+            "review_agent": "review_agent",
+        },
     )
-    # evaluation and review both work on the pre-selection list;
-    # sequential here, conceptually parallel
-    graph.add_edge("evaluation_agent", "review_agent")
+    # Both parallel branches converge at orchestrator_agent
+    graph.add_edge("evaluation_agent", "orchestrator_agent")
     graph.add_edge("review_agent", "orchestrator_agent")
     graph.add_edge("orchestrator_agent", "output_ranking")
     graph.add_edge("output_ranking", END)
