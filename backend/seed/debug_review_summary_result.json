@@ -1,0 +1,473 @@
+{
+  "input": {
+    "json_file": "backend\\seed\\dataset_Google-Maps-Reviews-Scraper_2026-03-10_18-07-20-965.json",
+    "top_k_positive": 30,
+    "top_k_negative": 30,
+    "skip_empty_text_for_summarization": true,
+    "raw_item_count": 100,
+    "mapped_review_count": 100,
+    "first_raw_item_keys": [
+      "address",
+      "categories",
+      "categoryName",
+      "cid",
+      "city",
+      "countryCode",
+      "fid",
+      "imageUrl",
+      "isAdvertisement",
+      "isLocalGuide",
+      "kgmid",
+      "language",
+      "likesCount",
+      "location",
+      "name",
+      "neighborhood",
+      "originalLanguage",
+      "permanentlyClosed",
+      "placeId",
+      "postalCode",
+      "price",
+      "publishAt",
+      "publishedAtDate",
+      "rating",
+      "responseFromOwnerDate",
+      "responseFromOwnerText",
+      "reviewContext",
+      "reviewDetailedRating",
+      "reviewId",
+      "reviewImageUrls",
+      "reviewOrigin",
+      "reviewUrl",
+      "reviewerId",
+      "reviewerNumberOfReviews",
+      "reviewerPhotoUrl",
+      "reviewerUrl",
+      "reviewsCount",
+      "scrapedAt",
+      "searchString",
+      "stars",
+      "state",
+      "street",
+      "temporarilyClosed",
+      "text",
+      "textTranslated",
+      "title",
+      "totalScore",
+      "translatedLanguage",
+      "url",
+      "visitedIn"
+    ]
+  },
+  "stats": {
+    "deduplicated_count": 100,
+    "text_review_count": 77,
+    "empty_text_review_count": 23,
+    "selected_positive_review_count": 30,
+    "selected_negative_review_count": 15,
+    "avg_rating_recent": 4.28,
+    "rating_distribution": {
+      "1": 11,
+      "2": 2,
+      "3": 4,
+      "4": 14,
+      "5": 69
+    }
+  },
+  "selected_reviews": {
+    "positive": [
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xKaVdFSTRZWE5VZDBKemNrMDRURFZGYmtSak1HYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "We are addicted to their soup. Best soup in Zurich. Arthur is great",
+        "date": "2026-03-09T20:02:11.017000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pBM05tdDJVa05DTlZsaFdFZGlkVlJWWVZSMFZrRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Thank you👑👑👑",
+        "date": "2026-03-09T20:01:26.497000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2s1Mk1HdDBWM0ZaV1doaWJsOXBka3BhUmtaS1JHYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "arthur is king!",
+        "date": "2026-03-09T20:00:50.602000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2tOc1psaERhVWR0V1RWM2FFTjVjMGxOUjJkNWFtYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "The food was as always fantastic and Arthurs service and good mood made it even better! See you next time! 🐰",
+        "date": "2026-03-09T13:36:58.898000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2sxMFExTnBUSG8wZVhGcGNFaG5kV0ZZVnpoSldrRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Mega Fein gsi. Excellent kitchen and perfect service",
+        "date": "2026-03-09T13:23:30.241000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT25nM2RERjFSbUYzU2xWeFRHVk5TemQwVjNKMU9GRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Love to have a quick authentic lunch there by myself. Chicken Don is great and the service is chill.",
+        "date": "2026-03-09T12:20:22.764000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2tONWJHaE1ZbDlVUkVzNVZsZEdiMGxwVGxjeWMwRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Beste Ramen in Zürich, sympathische Bedienung!",
+        "date": "2026-03-06T16:54:11.935000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2tKM0xYTmtjekJ3VUdnM2RWRmZPVVoxYUhWU2NHYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Very kind, very tasty! Big recommendation",
+        "date": "2026-03-05T14:15:53.221000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pKa09IVkpTRUp4WDNJNWRIaGtSVTVWWlV0aVRrRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Ins Machida geht zum schnell essen, nicht um gemütlich sitzen zu bleiben.\nIst das mal bewusst, findet man es super.",
+        "date": "2026-03-03T17:24:47.249000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pkUU4zWmphVk52ZUZKVU5ubERZWEZGY0daTVNtYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Best! And I mean, *best* ramen spot in Zurich!",
+        "date": "2026-03-01T20:42:29.033000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT25GTk9EaHNSbW81UzBaWmVqUlJNMjUzTTJoSVRHYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Definitiv die besten Ramen in Zürich.. selbst für Verhältnisse in Japan absolutes Toplevel!",
+        "date": "2026-02-28T19:15:34.468000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xBeGVVdDNZVlpSUTI5WGIzUlRTMG8wU1VGc2RuYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "A branch of a Yokohama based Ramen chain, so 100% authentic. Amazing! And the prices are fair as well.",
+        "date": "2026-02-25T19:38:38.260000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21kb2MzaDJOalJqVTNOSmR6WTJTMlpGV2pVNFpIYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Etwa 100.- zu Zweit\n2 Vorspeisen\n2 Ramen\n2 Getränke\n\nMeega Ramen, sehr nettes und zuvorkommendes Personal. Authentische Stimmung, wir haben es genossen.",
+        "date": "2026-02-21T17:45:49.432000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xSUVdsTjVhRU56ZUVJM2RVVk9USEUzWDBOS1VsRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Sunday around 1 we didn’t have to wait long to get a spot. The queue organization - like we remember from Japan.\nFood super authentic. Came close to the best Ramen I’ve ever tasted in Ueno.\nBoth ramens we had were delicious and flavorful.\nThe dessert hojija and matcha affogato are big enough to be shared among at least two people.",
+        "date": "2026-02-21T10:26:08.919000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21KSVZVNVFRamxpYW5BeFVEZERSelJzU0RodmNWRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Very nice food, sweet service but they were out of sesame ice cream, that was a downer.",
+        "date": "2026-02-20T18:06:11.604000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2t4eWN6Um9Va1JCVDNWQlZGUnFWMkpmUTNndFgxRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Finally, I found a great ramen spot!\nIt’s always busy, and there’s usually a line. While you’re waiting, they even offer free hot tea. I love the open kitchen — you can watch them prepare your ramen fresh. Fair prices and excellent quality! The service is very, very friendly. I will definitely come back. 😊",
+        "date": "2026-02-19T19:51:49.228000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2t0c1NIUnpkMWhVTVVwVGVteEdRa2xUUm5sdk1sRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Ich war kürzlich in diesem Restaurant und bin absolut begeistert! Wer auf der Suche nach traditioneller japanischer Küche in Zürich ist, kommt hier voll auf seine Kosten.\nWas mir besonders gefallen hat: Das Essen die Ramen waren fantastisch die Brühe war geschmackvoll und die Nudeln hatten die perfekte Konsistenz. Man merkt sofort, dass hier Wert auf Authentizität gelegt wird. Das Ambiente die Einrichtung ist super gemütlich und versetzt einen direkt nach Japan. Der Service sobald man am Tisch sitzt, geht es extrem schnell. Wir mussten kaum auf unser Essen warten.\n\nEin kleiner Hinweis:\nDas Restaurant ist völlig zurecht sehr beliebt. Wenn der Laden voll ist, gibt es im Inneren kaum Platz zum Stehen, weshalb man draussen warten muss. Wir haben etwa 10 bis 20 Minuten in der Schlange verbracht. Da es sich für dieses Essen aber absolut lohnt, nimmt man das gerne in Kauf.\n\nFazit: Wer authentische Ramen ohne grossen Schnickschnack sucht, ist hier genau richtig. Ich komme definitiv wieder!",
+        "date": "2026-02-15T00:44:39.369000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21kSlNucHhZVXBKTlUxamMxVnVNSGhDVEZWT1NXYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Took water with ice. Wife said she wouldn't come. Bought sausage for her in the nearby Letzi Markt.",
+        "date": "2026-02-11T17:36:02.686000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT25CT2RWbEhVazl6Yms1aVZrUk1TemxSVEVkU1NFRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "loved it!",
+        "date": "2026-02-03T16:34:40.431000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21Kd2RGaHZabkoxVFhGa1ZVUk1VMVZWUkZoSFZrRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "This place completely blew me away. Hands down the best ramen I’ve ever had in Europe — rich, creamy, deeply eggy, and full-bodied with layers of flavour I honestly never experienced before. The noodles were absolutely perfect, the marinated egg was outstanding, and the quail egg was a delicious bonus that elevated everything even more.\n\nYes, we waited almost 30 minutes — and it was 100% worth it. Not even a question.\n\nThe yuzu beer paired beautifully with the ramen, refreshing and perfectly balanced. The takoyaki were fantastic, crispy and flavourful, and the black sesame ice cream was the perfect finish — bold, nutty, and not too sweet.\n\nWhat truly completes the experience is the staff: incredibly friendly, attentive, and welcoming. I loved how they greet everyone who enters and warmly say goodbye in Japanese when you leave — it makes the whole place feel special and genuine.\n\nThe atmosphere is cozy, beautifully decorated, and inviting. On top of that, offering a complimentary warm drink while waiting is such a thoughtful touch and shows how much they care about their guests.\n\nAn absolute gem. I’ll be thinking about this ramen for a long time — and I’ll definitely be back.",
+        "date": "2026-01-30T23:09:50.870000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2w5alVUWllhelJwVUdkd05uaGFTekpUTVRWWlZtYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "My quest for the perfect bowl of noodle soup began on the third day of my trip to Zurich. Eager to satisfy my craving, I discovered a place called Yume Ramen, just a 14-minute walk from my hotel. However, a quick check on Google Maps warned me that the eatery might close soon, as their website indicated they shut down at 2 PM. When I arrived at 1:35 PM, my heart sank at the sight of the \"CLOSED\" sign hanging on the door. 😢 As someone accustomed to the vibrant dining culture of Asia, it was hard to wrap my head around a restaurant closing its doors so early.\n\nRefusing to let disappointment deter me, I quickly began my search for another ramen spot. My eyes landed on the enticing ramen photos from Machida Shoten, but my excitement was tempered by the thought of a 47-minute walk or a 21-minute tram ride to get there. Normally, I would have opted for something closer, but something pushed me to embrace the adventure and venture out to this ramen restaurant that looked so promising online.\n\nUpon arrival, I was warmly welcomed by the entire team, which instantly lifted my spirits. With my heart set on their signature ramen, I also decided to add some spicy minced chicken and spinach for an extra kick. The dish did not disappoint! The noodles had that delightful chewy texture I adore, and while the pork slices were slightly tougher than I would have liked, they still complemented the dish well.\n\nTo my surprise, I found myself savoring every last drop of the rich and flavorful broth—I couldn't believe I finished it all! By the end of my meal, I felt utterly satisfied and content. This culinary adventure not only fulfilled my craving but also left me with a memorable experience that I wouldn’t trade for anything. If you're in Zurich and on the hunt for delicious ramen, I wholeheartedly recommend giving Machida Shoten a try!",
+        "date": "2026-01-21T18:36:08.328000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT25sTVFqa3RSVkYzVDNGNVpHeG9TVkpETnpCeFNHYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "They make a Mistake on my order, but quickly corrected it and brought what was missing! Very tasty Ramen :)",
+        "date": "2026-01-20T16:54:55.431000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xnNGNHOXlhV2M1Tm1KQ01YcEhZbVppVDJ0d1JsRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Wir waren hier über Mittag und hatten beide die Yokohama Style Max Ramen - also die Version mit extra viel Schweinebauch. Im vollbesetzten Lokal wurden die Nudeln innerhalb von 5‘ serviert. Das Fleisch war kalt und geschmacklich eher fade bis leicht abgestanden (!) mit einem hohen Fettanteil was an sich ok ist für Schweinebauch aber wenn es keinen Geschmack hat eher weniger appetitlich ist. Die Portion Nudeln war eher auf der knappen Seite, wir hätten noch mehr essen können. Die Brühe war lauwarm, nicht heiss wie sie sein sollte, geschmacklich durchaus lecker und sehr cremig. Alles in allem eine ok Mahlzeit aber sicher nicht top. Bei der grossen Auswahl an Alternativen ist dieses Lokal daher nicht die 1. Wahl, für ein rasches Business Lunch aufgrund des schnellen Service und der angenehmen Atmosphäre aber sicher vertretbar.",
+        "date": "2026-01-20T13:52:15.428000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21JNWRWOHpkR0p5VTJWTk4wWTFZa2t0TUV0bmExRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "We went to eat there at 6pm on Saturday evening. The restaurant was full, so we waited outside, but the wait was only about ten minutes. As reservations aren't possible, I'd recommend going at a less busy time if you dislike waiting.\nThe service was excellent. The flavour and portion size of the ramen were great, and I was delighted to receive piping hot ramen.\nThe substantial noodles are irresistible for ramen lovers. It's a place I'd definitely visit again.",
+        "date": "2026-01-17T20:15:43.724000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21OSVkzbzFka1Y1VVhKamVtMDJNemR6ZVd0RU9YYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Perfect place to enjoy a delicious ramen! Happy to celebrate my birthday at Machida 💛",
+        "date": "2026-01-17T13:38:30.495000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xaR2NGOW9Yek5EV0dGUk1VUlZibkZ4VEhoR1pWRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Ramen für meinen Geschmack sehr gut :-) war noch nie in Japan, habe also keinen Vergleich.\nLeider muss man oft anstehen. Ansonsten alles super!",
+        "date": "2026-01-12T08:41:09.352000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT25sSWVIWlBVRTR6YWpWZlJXaGtRVTVEY0RocFdrRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Richtig schön dekoriert im Restaurant, die Musik passt voll und die Lautstärke passt auch.\nService war wirklich top, der Kellner namens Joaquin kam sehr sympathisch vor und half uns den Abend zu geniessen.\nExperience die man sicher erleben soll!",
+        "date": "2026-01-10T17:35:03.789000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xBMWJUVmFWMFZpZUdvMVpWcHBkRFV4TmxGdmVsRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "年末年始の時期にお伺いしたからか、常に2.3組が店外で待ってるほど人気でした\n横浜家系ラーメンと唐揚げを頂きましたがどちらもとてもおいしかった\nラーメンのスープは濃厚だけど日本ほどコッテリはしてない、麺は日本と違って少し柔らかめの麺、唐揚げは揚げたてで文句なしに美味しかった\n玉ねぎや紅生姜、たくあんなどはセルフサービスです\n\nPerhaps because I visited during the year-end and New Year holiday season, the restaurant was extremely popular, with two to three groups constantly waiting outside.\n\nI ordered Yokohama-style ramen and chicken karaage, and both were excellent. The ramen soup was rich and flavorful, but not as heavy as in Japan. The noodles were slightly softer than typical Japanese iekei ramen. The chicken karaage was freshly fried and absolutely delicious.\n\nToppings such as chopped onions, pickled ginger, and takuan were available as self-service.",
+        "date": "2025-12-29T13:25:34.723000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pSU1drNUNXWE15VDFwM09IRTJjelpFUkZjd2JVRRAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "Sehr authentisch!\nDie Bedienung ist sehr bemüht, dass sich die Gäste wie in Japan fühlen. Das Essen schmeckt super gut.\nDie Preise sind aber extrem hoch für einen „schnellen Imbiss“.",
+        "date": "2025-12-23T19:01:21.461000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21zeVdraGlhREJxU21wYVlqbFlObEJETkRWaWRYYxAB",
+        "provider_id": null,
+        "stars": 5.0,
+        "text": "I ordered this food as takeaway and it was my first time eating it. Surprisingly it was very delicious despite being a takeaway I know that the quality of food in pack away might be lesser than in dining experience but it was still very tasty. I feel more optimistic to try a dine in experience! I had the Yokohama style ramen, takoyaki, and kaarage. The potion of mayo for the kaarage was very small in take away. Other than that the experience was 10/10 !",
+        "date": "2025-12-21T19:51:04.998000Z"
+      }
+    ],
+    "negative": [
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21ZdE9IVmtSRXBhYzBGa2RFVndOSEJDYTFoRlZIYxAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Ich kenne jedes Ramen Restaurant in Zürich und habe auch jahrelang in Japan gelebt.\n\nDas Machida Shoten hat mich leider sehr enttäuscht. Das Personal ist unfreundlich und es herrscht absolutes Chaos und keine der Vorspeisen ist selbst gemacht!\n\nWir waren am Nachmittag um 15 Uhr fast die einzigen Gäste, dennoch haben wir sehr lange auf das Essen gewartet. Wir haben alle Vorspeisen bestellt, jedoch kamen diese alle erst nachdem wir die Ramen fertig gegessen haben. Keine Entschuldigung dafür. Vor allem hat mich aber gestört, dass keine einzige Vorspeise hausgemacht war!!! Die Gyozas sind diejenigen von der Marke \"Ajinomoto\", welche man für den Preis eine ganze Packung im Asia Store erhält und die Takoyaki sind in der Fritteuse frittiert und ebenfalls eingekauft. Das Personal gibt aber Auskunft, dass alle Vorspeisen hausgemacht sind. Eine Frechheit!!!\n\nTori Paitan Ramen war bei uns viel zu salzig, Yokohama Style Ramen war ok, aber bei beiden waren sie sehr geizig mit dem Topping und die Nudeln haben geklebt. Auf Nachfrage hin, sagte das Personal, die Nudeln müssten so sein?! Generell sind die Portionen SEHR klein (etwa die Hälfte von Sappo Ramen und Ooki) und ACHTUNG Fleisch vom Ausland!",
+        "date": "2026-02-24T14:36:16.149000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21kRlRYQlhUR2RaZDJkMFF6aEJOeTB6UmxjMVpGRRAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Went back today with friends because I liked the authentic ramen last time. We arrived at 11:10 to avoid line. One unfriendly staff came out and said: „It’s too early. Go have a walk and come back later“ Don’t understand why he tried to send us away. They don’t provide a list to leave your name to secure the place. Several minutes later already a lot of other clients waiting behind us. However they were not encouraged by the staff to go for a walk. If we have listend to the staff and had gone for a walk, we would have lost our place.\n\nWhen we finished eating he came and said: „want to pay?“ and presented the machine directly to us, without showing or confirmed us what we had ordered and what we ate. Why don’t provide your customers the bill? We didn’t even have the time to check if everything was correct. We were not prepared to pay directly and maybe we needed the time to discuss how we want to share the costs between us and how to pay.\n\nAnd after payment not even asking if we need a receipt. Very unprofessional. I’m really annoyed by the service of that staff and it ruined our dining experience. I hope you could improve and keep the Japanese service spirit towards your customers even if it’s opened in Switzerland.",
+        "date": "2026-02-23T07:28:53.725000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT214RlpuWnFYek5YUTJOSk9EaGlZemhZUldSTlgwRRAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "They offer gluten free noodles but they use regular soy sauce that's not gluten free. What joke is this? This is extremely dangerous.",
+        "date": "2026-02-04T19:36:43.217000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21wMFkwNUlUblZoU0ZFNFUwZDRaRVp3ZVdOeGRtYxAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Food is good, however having a lot of empty seat, while still letting people waiting outside is really not nice",
+        "date": "2026-01-31T12:03:11.154000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pKNGJHd3lPRUozVjBselYzRkNNbTl5YTNwcVNVRRAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Wenn ihr es nicht hinkriegt via Uber Eats zu liefern, dann lasst es einfach. Ich machte eine Vorbestellung, wurde bestätigt; Lieferung kommt um 20:45 und um 20:20 wird die Bestellung trotz Bestätigung storniert. So etwas geht gar nicht!!",
+        "date": "2026-01-25T19:19:37.093000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT210RWNIbGlUSHB2VEZSMWEyb3pTREZPVDNWYVZYYxAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "This is the first Machida Shoten in Europe, and it seems that they still need to learn A LOT about local dining culture. The staff is rude and does not care about you. For the first time in my life (age of 48), I was asked to leave a restaurant. And for the first time in my life, we were asked to leave before we even finished our meals. In their opinion, my date and I seemed to be longer there than the staff felt appropriate. There are many, many amazing Ramen places in Zurich that serve you the same or even better quality of food, but in stark contrast to this one, they value their guest and aren't just trying to take your money.",
+        "date": "2026-01-18T11:44:31.435000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21KUU1EbEdSVmhpUmxNM1JtVmxjR1ZtTkVvMU0wRRAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Wartezeit wird mit mind. 30 min wenn nicht länger angegeben. Wenn man dann kurz sagt man holt die Jacke aus dem Auto und kommt zurück ist der Tisch nach 10-15 min schon weg und man muss erneut anstehen. Wenn man sich dazu äussert wird einem nicht geglaubt. Warten ist für uns kein Problem, aber es ist respektlos für unsere Zeit, nur weil die Dame an der Tür ihre Übersicht nicht hatte und vollkommen verwirrt war. Sie hat nicht damit gerechnet, dass der Tisch bereits nach 10 min frei wird und vermutlich vergessen, dass wir kurz zum Auto sind. Sie hätte auch sagen können oh der Tisch war vorher fertig sorry oder sowas. Naja geht nicht in der Kälte hin und auch nicht in einer Gruppe. Am besten zu anderen Zeiten. Wir sind dann in ein anderes Restaurant und hatten wirklich gute Ramen und Sushi.",
+        "date": "2026-01-07T16:48:36.481000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2w5elpFMUtSazQ0WkhseGVYQkRaVnBKYXpKNGRYYxAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Visited on 30/12/2025. Unfortunately vegan ramen was not available, only vegetarian don was available. They put a sticker onto the menu so I am not sure if this has been recurring(other times - vegan noodle were available).\n\nIf you are going there for vegetarian/vegan option, I would suggest to call beforehand or go to Hikari where everything is vegetarian friendly.",
+        "date": "2026-01-03T20:16:42.121000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xKUVluWTNiRjl2Y0RCcE4yRlBhVWt0TnpkWmFWRRAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Max Ramen Brühe gut.....Nudeln und Fleisch ganz schlecht!!\nEs wahr zum Teil sehr laut.",
+        "date": "2025-12-30T12:07:12.359000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2xKemRIVlJNSEIwVEhGamFYSjJXbEJ4ZVdoMFIzYxAB",
+        "provider_id": null,
+        "stars": 1.0,
+        "text": "Besuch war leider enttäuschend. Trotz freier Tische mussten wir 30 Minuten draussen warten. Das Personal trat sehr überheblich auf, weshalb wir uns entschieden haben zu gehen. Bei Ooki Ramen wurden wir dann herzlich empfangen und hatten ein tolles Essen.",
+        "date": "2025-12-03T12:12:09.677000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2pWTFUyVlVkazVFTkZrM2NrWklNM0ZHY2xCakxXYxAB",
+        "provider_id": null,
+        "stars": 2.0,
+        "text": "Service schrecklich - Essen top\nWar nun schon 2x hier\n1. Mal: Dauerte sehr lange bis das Essen kam, Vorspeise wurde serviert als ich mit der Hauptspeise bereits fertig war, Misobrühe war nicht verfügbar.\n2. Mal: Leute die nach uns kamen wurden vor uns bedient und bekamen auch schon ihr Essen bevor wir überhaupt bestellen konnten. Die sassen am Nebentisch und wir haben es trotzdem nicht geschafft auf uns aufmerksam zu machen. Irgendwann konnte ich jemanden darau aufmerksam machen, dass wir gerne bestellen würden, es kam dann aber doch wieder niemand für längere Zeit...",
+        "date": "2026-01-10T06:45:13.350000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2t4dlIwOVNTVWhNWkdSaVRrVnRiMjVEVTJ0dlVFRRAB",
+        "provider_id": null,
+        "stars": 2.0,
+        "text": "Habe bei Uber Eats die Gyoza & Ramen bestellt.\nGyozas waren gut, aber die Ramen Nudeln waren so extrem überkocht, dass es ein einziger Klumpen war. Absolut ungeniessbar! Die Brühe & das Fleisch waren gut, weshalb die katastrophalen Nudeln für mich sehr unverständlich sind.",
+        "date": "2026-01-07T16:05:02.989000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21OalZGSlpPVEJYZEZoVFNWTmtXVVEyWVdOdk1tYxAB",
+        "provider_id": null,
+        "stars": 3.0,
+        "text": "The reputation of this spot often overwhelms it.  Even though most times you will have to wait in a frantic sidewalk crowd, we managed to bypass the chaos during a quiet Monday service.\nWhile the bowl was fundamentally sound, the chashu fell somewhat short of the gold standard. The spicy ramen was not even slightly spicy.\nWhat truly elevates the experience is the customization; the diverse selection of extra aromatics provides a necessary depth that the kitchen’s initial seasoning only hints at...",
+        "date": "2026-03-09T20:38:42.060000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT21Sb2VVZFdPRmRwT1RSTVptSlVVREZSVEdJNFZrRRAB",
+        "provider_id": null,
+        "stars": 3.0,
+        "text": "ich war ende August 25 dort und hatte nach dem Restaurant-Besuch \"China-Restaurant-Syndrom\"-ähnliche Beschwerden - Bauchschmerzen und sogar leichte Atemnot. Ich weiss nicht, ob es an dem Glutamat liegt - aber diese asiatischen Süppchen mit überprozessierten Zutaten/Gewürzen zu lächerlichen Preisen (30+ Franken für ne Suppe, deren Wert nicht mehr als 5.- ist) spar ich mir in Zukunft und mache sie wenn dann selber zu Hause.",
+        "date": "2026-01-30T15:51:00.348000Z"
+      },
+      {
+        "id": "Ci9DQUlRQUNvZENodHljRjlvT2w5SlN6ZFJWbTVoUVdWUWEyTkZOVkJ1U2toWFduYxAB",
+        "provider_id": null,
+        "stars": 3.0,
+        "text": "Didn‘t have half of the menu in stock.. e.g. no miso soups. Food is okay. The cabbage starter  was oversalted\nthe service is okay. but not necessarily very kind. The place is also very loud and crowded. Virtually all the other Ramen places in Zurich are better than this one.",
+        "date": "2025-12-28T19:34:42.635000Z"
+      }
+    ]
+  },
+  "summary_result": {
+    "strengths": [
+      "authentic ramen",
+      "friendly service",
+      "quick service",
+      "delicious food"
+    ],
+    "weaknesses": [
+      "small portions",
+      "long waiting times",
+      "unfriendly staff",
+      "not gluten-free options"
+    ],
+    "positive_aspects": [
+      "service",
+      "food quality",
+      "atmosphere",
+      "authenticity",
+      "quick service"
+    ],
+    "negative_aspects": [
+      "small portions",
+      "long waiting times",
+      "unfriendly staff",
+      "not gluten-free options"
+    ],
+    "summary": "Customers generally praise the authenticity, quality, and service of the ramen, with many recommending it highly. However, issues with small portions, long waiting times, and unfriendly staff are frequently mentioned. Gluten-free options are also lacking.",
+    "confidence": 0.85
+  },
+  "orchestrator_payload": {
+    "strengths": [
+      "authentic ramen",
+      "friendly service",
+      "quick service",
+      "delicious food"
+    ],
+    "weaknesses": [
+      "small portions",
+      "long waiting times",
+      "unfriendly staff",
+      "not gluten-free options"
+    ],
+    "positive_aspects": [
+      "service",
+      "food quality",
+      "atmosphere",
+      "authenticity",
+      "quick service"
+    ],
+    "negative_aspects": [
+      "small portions",
+      "long waiting times",
+      "unfriendly staff",
+      "not gluten-free options"
+    ],
+    "summary": "Customers generally praise the authenticity, quality, and service of the ramen, with many recommending it highly. However, issues with small portions, long waiting times, and unfriendly staff are frequently mentioned. Gluten-free options are also lacking.",
+    "confidence": 0.85
+  },
+  "evidence": {
+    "positive_sample_quotes": [
+      "We are addicted to their soup. Best soup in Zurich. Arthur is great",
+      "Thank you👑👑👑",
+      "arthur is king!"
+    ],
+    "negative_sample_quotes": [
+      "Ich kenne jedes Ramen Restaurant in Zürich und habe auch jahrelang in Japan gelebt.  Das Machida Shoten hat mich leider sehr enttäuscht. Das",
+      "Went back today with friends because I liked the authentic ramen last time. We arrived at 11:10 to avoid line. One unfriendly staff came out",
+      "They offer gluten free noodles but they use regular soy sauce that's not gluten free. What joke is this? This is extremely dangerous."
+    ]
+  },
+  "timing": {
+    "filtering_seconds": 0.000261,
+    "summarization_seconds": 7.181559,
+    "total_runtime_seconds": 7.683352
+  }
+}
