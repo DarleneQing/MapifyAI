@@ -97,9 +97,14 @@ class AgentTrace(BaseModel):
 # ---------------------------------------------------------------------------
 
 class CreateRequestPayload(BaseModel):
-    raw_input: str
+    query: str | None = None       # frontend sends "query"
+    raw_input: str | None = None   # internal alias
     location: LatLng
+    language: str | None = None
     preferences: UserPreferences | None = None
+
+    def get_raw_input(self) -> str:
+        return self.query or self.raw_input or ""
 
 
 class SubmitOfferPayload(BaseModel):

@@ -1,171 +1,346 @@
 """
-LangGraph Graph Definition  (Backend-1 — yours to implement)
--------------------------------------------------------------
-Wires all agents into a state machine using LangGraph.
+LangGraph pipeline — multi-agent DAG for LocalBid recommendations.
 
-TODO:
-  1. Create a StateGraph with PlannerState
-  2. Add each agent as a node
-  3. Add edges: intent_parser → retrieval → feasibility → ranking → explanation → END
-  4. Call ranking/explanation via services (implemented by Backend-3)
-  5. Compile and expose run_pipeline()
+Architecture:
+  intent_parser → crawling_search → transit_calculator
+                                            │
+                              ┌─────────────┴─────────────┐
+                              ▼                           ▼
+                      evaluation_agent            review_agent
+                              │                           │
+                              └─────────────┬─────────────┘
+                                            ▼
+                                   orchestrator_agent
+                                            │
+                                     output_ranking
+                                            │
+                                           END
 
-Docs: https://langchain-ai.github.io/langgraph/
+evaluation_agent and review_agent run in parallel via LangGraph's Send API —
+both receive the pre-selection list from transit_calculator simultaneously.
+LangGraph merges their state writes before orchestrator_agent runs.
+
+The orchestrator_agent is the LLM brain: it reads user intent +
+hard scores (evaluation_agent) + review summaries (review_agent) and
+generates one_sentence_recommendation per place.
+
+If APIFY_API_TOKEN is not set, crawling_search falls back to the local seed file.
 """
-from langgraph.graph import StateGraph, END
+import json
+import time
 
+from langgraph.graph import StateGraph, END
+from app.agents import intent_parser
 from app.agents.state import PlannerState
-from app.agents import intent_parser, retrieval, feasibility
-from app.agents.trace import make_trace
-from app.services.ranking import rank_offers
-from app.services.explanation import attach_explanations
+from app.agents.trace import add_step, make_trace
+from app.config import APIFY_API_TOKEN, OPENAI_API_KEY, DEFAULT_MODEL
 from app.models.schemas import UserPreferences
 
 
-# TODO: import ranking and explanation nodes once Backend-3 implements them
-# from app.agents import ranking_node, explanation_node
+# ---------------------------------------------------------------------------
+# Node: crawling_search  (Apify or seed fallback)
+# ---------------------------------------------------------------------------
+
+def _crawling_search_node(state: PlannerState) -> PlannerState:
+    if APIFY_API_TOKEN:
+        from app.agents import crawling_search
+        return crawling_search.run(state)
+    from app.agents import retrieval
+    return retrieval.run(state)
 
 
-def _score_provider(p: dict, prefs: dict, min_price: float, max_price: float, min_dist: float, max_dist: float) -> tuple[float, dict]:
-    """Simple weighted score. All dimensions normalised to [0, 1]."""
-    def norm(val, lo, hi, invert=False):
-        if hi == lo:
-            return 1.0
-        n = (val - lo) / (hi - lo)
-        return 1 - n if invert else n
+# ---------------------------------------------------------------------------
+# Node: transit_calculator  (SBB ETA + reachability filter)
+# ---------------------------------------------------------------------------
 
-    price_mid = _parse_price_midpoint(p.get("price_range", ""))
-    price_score = norm(price_mid, min_price, max_price, invert=True)
-    distance_score = norm(p.get("distance_km", 0),
-                          min_dist, max_dist, invert=True)
-    rating_score = norm(p.get("rating", 3.0), 1.0, 5.0)
-
-    wp = prefs.get("weight_price", 0.33)
-    wd = prefs.get("weight_distance", 0.33)
-    wr = prefs.get("weight_rating", 0.34)
-
-    total = wp * price_score + wd * distance_score + wr * rating_score
-    breakdown = {
-        "price_score": round(price_score, 3),
-        "distance_score": round(distance_score, 3),
-        "rating_score": round(rating_score, 3),
-    }
-    return round(total, 4), breakdown
+def _transit_calculator_node(state: PlannerState) -> PlannerState:
+    from app.agents import transit_calculator
+    return transit_calculator.run(state)
 
 
-def _parse_price_midpoint(price_range: str) -> float:
-    """Extract midpoint from 'CHF 30–60' style strings."""
-    import re
-    nums = re.findall(r"\d+", price_range)
-    if len(nums) >= 2:
-        return (float(nums[0]) + float(nums[1])) / 2
-    if len(nums) == 1:
-        return float(nums[0])
-    return 50.0  # fallback
+# ---------------------------------------------------------------------------
+# Node: evaluation_agent  (hard score calculation via ranking.py)
+# ---------------------------------------------------------------------------
 
+def _evaluation_node(state: PlannerState) -> dict:
+    # Returns only the key this node owns — required for parallel execution.
+    # Returning the full state would cause LangGraph to see multiple writers
+    # on every key when evaluation_agent and review_agent run simultaneously.
+    from app.services.ranking import rank_offers
 
-def _explain(p: dict, breakdown: dict, prefs: dict) -> list[str]:
-    """Generate top-3 human-readable reasons from score breakdown."""
-    reasons = []
-    sorted_dims = sorted(breakdown.items(), key=lambda x: x[1], reverse=True)
-
-    labels = {
-        "price_score":    f"Affordable pricing ({p.get('price_range', 'N/A')})",
-        "distance_score": f"Close by — only {p.get('distance_km', '?')} km away",
-        "rating_score":   f"Highly rated at {p.get('rating', '?')} ★",
-    }
-    for dim, _ in sorted_dims[:3]:
-        reasons.append(labels.get(dim, dim))
-
-    # Add time label if present
-    if p.get("time_label") and len(reasons) < 3:
-        reasons.append(p["time_label"].capitalize())
-
-    return reasons[:3]
-
-
-def _ranking_node(state: PlannerState) -> PlannerState:
-    providers = state["feasible_providers"]
-
-    if not providers:
-        state["ranked_offers"] = []
-        return state
-
-    raw_prefs = state.get("preferences")
+    providers = state["candidate_providers"]
+    prefs_dict = state.get("preferences") or {}
     try:
-        prefs = UserPreferences(**raw_prefs) if isinstance(raw_prefs, dict) else UserPreferences()
-    except Exception:
-        prefs = UserPreferences()
-
-    ranked = rank_offers(providers, prefs)
-    state["ranked_offers"] = ranked
-    return state
-
-
-def after_feasibility(state: PlannerState) -> str:
-    if len(state["feasible_providers"]) == 0 and state.get("retry_count", 0) < 2:
-        return "retry"
-    return "ranking"
-
-
-def _explanation_stub(state: PlannerState) -> PlannerState:
-    if not state.get("ranked_offers"):
-        return state
-
-    raw_prefs = state.get("preferences")
-    try:
-        prefs = UserPreferences(**raw_prefs) if isinstance(raw_prefs, dict) else None
+        prefs = UserPreferences(**prefs_dict) if prefs_dict else None
     except Exception:
         prefs = None
 
-    state["ranked_offers"] = attach_explanations(state["ranked_offers"], prefs)
+    ranked = rank_offers(providers, prefs)
+    return {"ranked_offers": ranked}
+
+
+# ---------------------------------------------------------------------------
+# Node: review_agent  (Apify reviews + LLM summary)
+#
+# Currently a stub — returns empty advantages/disadvantages.
+# TODO: call Apify review scraper for each place in candidate_providers,
+#       then call OpenAI to produce structured advantages / disadvantages,
+#       and store them in state["review_summaries"].
+# ---------------------------------------------------------------------------
+
+def _review_node(state: PlannerState) -> dict:
+    # Returns only the key this node owns — required for parallel execution.
+    from app.services.reviews import summarise_providers
+    providers = state["candidate_providers"]
+    summaries = summarise_providers(providers)
+    return {"review_summaries": summaries}
+
+
+# ---------------------------------------------------------------------------
+# Node: orchestrator_agent  (LLM brain)
+#
+# Receives:
+#   - state["structured_request"]  — user intent, category, constraints
+#   - state["ranked_offers"]       — pre-selection list with hard scores
+#   - state["review_summaries"]    — advantages / disadvantages per place
+#
+# Produces:
+#   - one_sentence_recommendation attached to each item in ranked_offers
+# ---------------------------------------------------------------------------
+
+def _orchestrator_node(state: PlannerState) -> PlannerState:
+    start = time.time() * 1000
+    from openai import OpenAI
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    ranked = state["ranked_offers"]
+    review_map = {r["place_id"]: r for r in state.get("review_summaries", [])}
+    req = state["structured_request"] or {}
+
+    if not ranked:
+        state["trace"] = add_step(
+            state["trace"],
+            agent="orchestrator_agent",
+            input_data={},
+            output_data={"skipped": "no ranked offers"},
+            start_ms=start,
+        )
+        return state
+
+    places_info = []
+    for p in ranked[:10]:
+        review = review_map.get(p.get("id", ""), {})
+        places_info.append({
+            "name": p.get("name", ""),
+            "address": p.get("address", ""),
+            "rating": p.get("rating"),
+            "price_range": p.get("price_range", ""),
+            "distance_km": p.get("distance_km"),
+            "score": p.get("score"),
+            "advantages": review.get("advantages", []),
+            "disadvantages": review.get("disadvantages", []),
+        })
+
+    prompt = f"""You are a local service recommendation assistant in Zurich.
+
+User's request: {req.get("raw_input", "")}
+Category: {req.get("category", "")}
+Constraints: {json.dumps(req.get("constraints", {}))}
+
+Top candidate places with scores and reviews:
+{json.dumps(places_info, indent=2, ensure_ascii=False)}
+
+For each place write ONE concise sentence (max 20 words) explaining why it suits
+this specific user request. Focus on the most relevant factor: price, proximity,
+rating, or availability.
+
+Return a JSON object:
+{{
+  "recommendations": [
+    {{"name": "<place name>", "one_sentence_recommendation": "<sentence>"}}
+  ]
+}}"""
+
+    try:
+        response = client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": "You return only valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        result = json.loads(response.choices[0].message.content)
+        recs = result.get("recommendations", [])
+        rec_map = {r["name"]: r.get(
+            "one_sentence_recommendation", "") for r in recs}
+        for p in ranked:
+            p["one_sentence_recommendation"] = rec_map.get(
+                p.get("name", ""), "")
+    except Exception:
+        for p in ranked:
+            p.setdefault("one_sentence_recommendation", "")
+
+    state["ranked_offers"] = ranked
+    state["trace"] = add_step(
+        state["trace"],
+        agent="orchestrator_agent",
+        input_data={"ranked": len(ranked)},
+        output_data={"with_recommendations": len(ranked)},
+        start_ms=start,
+    )
     return state
 
+
+# ---------------------------------------------------------------------------
+# Node: output_ranking  (format ranked_offers → PlaceSummary[] for the API)
+# ---------------------------------------------------------------------------
+
+def _price_level(price_range: str | None) -> str:
+    import re
+    if not price_range:
+        return "medium"
+    nums = re.findall(r"\d+", price_range)
+    if not nums:
+        return "medium"
+    avg = sum(float(n) for n in nums) / len(nums)
+    if avg < 40:
+        return "low"
+    if avg < 80:
+        return "medium"
+    return "high"
+
+
+def _reachability_to_status(reachability: str | None) -> str:
+    if reachability == "closing_soon":
+        return "closing_soon"
+    if reachability == "unreachable":
+        return "closed"
+    return "open_now"
+
+
+def _format_transit(transit_info: dict | None) -> dict | None:
+    if not transit_info:
+        return None
+    return {
+        "duration_minutes": transit_info.get("duration_minutes"),
+        "transport_types": transit_info.get("transport_types", []),
+        "departure_time": transit_info.get("departure_time"),
+        "summary": transit_info.get("summary"),
+        "connections": transit_info.get("connections"),
+    }
+
+
+def _output_ranking_node(state: PlannerState) -> PlannerState:
+    start = time.time() * 1000
+    from app.services.explanation import attach_explanations
+
+    prefs_dict = state.get("preferences") or {}
+    try:
+        prefs = UserPreferences(**prefs_dict) if prefs_dict else None
+    except Exception:
+        prefs = None
+
+    ranked_with_reasons = attach_explanations(state["ranked_offers"][:10], prefs)
+
+    results = []
+    for p in ranked_with_reasons:
+        results.append({
+            "place_id": p.get("id", ""),
+            "name": p.get("name", ""),
+            "address": p.get("address", ""),
+            "distance_km": p.get("distance_km"),
+            "price_level": _price_level(p.get("price_range")),
+            "rating": p.get("rating"),
+            "rating_count": p.get("review_count", 0),
+            "recommendation_score": p.get("score"),
+            "status": _reachability_to_status(p.get("reachability_status")),
+            "transit": _format_transit(p.get("transit_info")),
+            "reason_tags": p.get("reasons", []),
+            "one_sentence_recommendation": p.get("one_sentence_recommendation", ""),
+        })
+
+    state["final_results"] = results
+    state["trace"] = add_step(
+        state["trace"],
+        agent="output_ranking",
+        input_data={"ranked": len(state["ranked_offers"])},
+        output_data={"results": len(results)},
+        start_ms=start,
+    )
+    return state
+
+
+# ---------------------------------------------------------------------------
+# Conditional edge after transit_calculator
+# Retry crawling_search with wider radius if no candidates remain
+# ---------------------------------------------------------------------------
+
+def _after_transit(state: PlannerState):
+    if not state["candidate_providers"] and state.get("retry_count", 0) < 2:
+        state["retry_count"] = state.get("retry_count", 0) + 1
+        return "retry"
+    # Fan-out: return a list of strings so LangGraph runs both nodes in parallel
+    # AND the static graph compiler can see both edges for draw_mermaid()
+    return ["evaluation_agent", "review_agent"]
+
+
+# ---------------------------------------------------------------------------
+# Graph wiring
+# ---------------------------------------------------------------------------
 
 def build_graph():
     graph = StateGraph(PlannerState)
 
     graph.add_node("intent_parser", intent_parser.run)
-    graph.add_node("retrieval", retrieval.run)
-    graph.add_node("feasibility", feasibility.run)
-    graph.add_node("ranking", _ranking_node)
-    graph.add_node("explanation", _explanation_stub)
+    graph.add_node("crawling_search", _crawling_search_node)
+    graph.add_node("transit_calculator", _transit_calculator_node)
+    graph.add_node("evaluation_agent", _evaluation_node)
+    graph.add_node("review_agent", _review_node)
+    graph.add_node("orchestrator_agent", _orchestrator_node)
+    graph.add_node("output_ranking", _output_ranking_node)
 
     graph.set_entry_point("intent_parser")
-    graph.add_edge("intent_parser", "retrieval")
-    graph.add_edge("retrieval", "feasibility")
+    graph.add_edge("intent_parser", "crawling_search")
+    graph.add_edge("crawling_search", "transit_calculator")
     graph.add_conditional_edges(
-        "feasibility",
-        after_feasibility,
+        "transit_calculator",
+        _after_transit,
         {
-            "retry": "retrieval",
-            "ranking": "ranking",
-        })
-    graph.add_edge("ranking", "explanation")
-    graph.add_edge("explanation", END)
+            "retry": "crawling_search",
+            "evaluation_agent": "evaluation_agent",
+            "review_agent": "review_agent",
+        },
+    )
+    # Both parallel branches converge at orchestrator_agent
+    graph.add_edge("evaluation_agent", "orchestrator_agent")
+    graph.add_edge("review_agent", "orchestrator_agent")
+    graph.add_edge("orchestrator_agent", "output_ranking")
+    graph.add_edge("output_ranking", END)
 
     return graph.compile()
 
 
-# Module-level compiled graph (import this in api/requests.py)
 pipeline = build_graph()
 
 
 def run_pipeline(raw_input: str, location: dict, preferences: dict | None = None) -> PlannerState:
-    """
-    Entry point called by the API layer.
-    Returns the final PlannerState with ranked_offers + trace.
-    """
+    """Entry point called by the API layer. Returns the final PlannerState."""
     initial_state: PlannerState = {
         "retry_count": 0,
         "raw_input": raw_input,
         "location": location,
-        "preferences": preferences or {"weight_price": 0.33, "weight_distance": 0.33, "weight_rating": 0.34},
+        "preferences": preferences or {
+            "weight_price": 0.33,
+            "weight_distance": 0.33,
+            "weight_rating": 0.34,
+        },
         "structured_request": None,
         "candidate_providers": [],
         "feasible_providers": [],
         "ranked_offers": [],
-        # id updated after intent_parser runs
+        "review_summaries": [],
+        "final_results": [],
         "trace": make_trace(request_id="pending"),
         "error": None,
     }

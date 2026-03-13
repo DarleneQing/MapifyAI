@@ -10,7 +10,7 @@ from apify_client import ApifyClient
 from app.config import APIFY_API_TOKEN
 
 ACTOR_ID = "compass/crawler-google-places"
-DEFAULT_MAX_RESULTS = 20
+DEFAULT_MAX_RESULTS = 10
 
 
 def search_places(
@@ -29,6 +29,8 @@ def search_places(
         "language": "en",
         "scrapePlaceDetailPage": True,
         "skipClosedPlaces": True,
+        "reviewsSort": "mostRelevant",
+        "maxReviews": 10,
         "customGeolocation": {
             "type": "Point",
             "coordinates": [str(lng), str(lat)],

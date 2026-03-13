@@ -43,28 +43,15 @@ class OrchestratorService:
         if isinstance(structured_request, dict):
             structured_request["id"] = request_id
 
-        offers = state.get("ranked_offers") or []
-        # Ensure offers are associated to the request so marketplace.get_offers(request_id) works.
-        if isinstance(offers, list):
-            for o in offers:
-                if isinstance(o, dict) and "request_id" not in o:
-                    o["request_id"] = request_id
+        results = state.get("final_results") or []
         trace = state.get("trace") or AgentTrace(request_id=request_id, steps=[]).model_dump()
         if isinstance(trace, dict):
             trace["request_id"] = request_id
 
         response = {
             "request": structured_request,
-            "offers": offers,
-            "trace": trace,
+            "results": results,
         }
-
-        if hasattr(self._marketplace, "persist_offers"):
-            try:
-                self._marketplace.persist_offers(offers)
-            except Exception:
-                # Marketplace implementation may require Offer models; ignore for now.
-                pass
 
         if self._trace_service is not None and hasattr(self._trace_service, "store_trace"):
             self._trace_service.store_trace(request_id, trace)

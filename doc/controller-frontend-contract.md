@@ -255,7 +255,20 @@
         "today_open": "10:00",
         "today_close": "20:00",
         "is_open_now": true
-      }
+      },
+      "social_profiles": {
+        "facebook": "https://facebook.com/awesome-hair-salon",
+        "instagram": "https://instagram.com/awesome-hair-salon"
+      },
+      "popular_times": {
+        "mon": [0, 10, 30, 50, 40, 20],
+        "tue": [0, 5, 15, 35, 45, 25]
+      },
+      "detailed_characteristics": [
+        "Kid-friendly",
+        "Outdoor seating",
+        "Wheelchair accessible"
+      ]
     },
     "review_summary": {
       "advantages": [
@@ -268,8 +281,8 @@
         "个别技师服务态度有待改善"
       ],
       "star_reasons": {
-        "five_star": [ "性价比高", "理发效果满意" ],
-        "one_star": [ "个别技师服务态度差" ]
+        "five_star": ["性价比高", "理发效果满意"],
+        "one_star": ["个别技师服务态度差"]
       }
     },
     "rating_distribution": {
@@ -279,6 +292,18 @@
       "4": 40,
       "5": 65
     },
+    "questions_and_answers": [
+      {
+        "question": "Do you have Wi‑Fi?",
+        "answer": "Yes, free Wi‑Fi is available for customers."
+      }
+    ],
+    "customer_updates": [
+      {
+        "text": "Now open on Sundays from 10:00–16:00",
+        "language": "en"
+      }
+    ],
     "recommendation_reasons": [
       "价格符合您的预算",
       "当前营业中，预计 15 分钟可到达"
@@ -288,9 +313,9 @@
 ```
 
 - **前端约定**：
-  - 详情页顶部展示 `place` 的基础信息和营业状态。
-  - 中间区域展示评论摘要（优势 `advantages` / 劣势 `disadvantages`）、评分分布图。
-  - 推荐理由区域使用 `recommendation_reasons` 渲染“为什么推荐这家”。
+  - 详情页顶部展示 `place` 的基础信息和营业状态，并提供社交媒体跳转按钮。
+  - 中间区域展示评论摘要（优势 `advantages` / 劣势 `disadvantages`）、评分分布图以及热门时段（`popular_times`）可视化。
+  - 推荐理由区域使用 `recommendation_reasons` 渲染“为什么推荐这家”，并在合适位置展示 `questions_and_answers` 与 `customer_updates` 精选内容。
 
 ---
 

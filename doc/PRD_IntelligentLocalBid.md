@@ -178,21 +178,27 @@
 
 - 评论聚合（Review Agent）：
   - 使用 **Apify Google Maps review scraper** 批量抓取所有候选店铺的评论数据；
-  - 按星级分组（如 1–2 星、4–5 星）；
-  - 提取高频关键词供 LLM 摘要使用。
+  - 按星级分组（如 1–2 星、4–5 星），生成 **评分分布 / review count & distribution**；
+  - 提取高频关键词供 LLM 摘要使用；
+  - 同步抓取「顾客更新（updates from customers）」和「问答（Questions & Answers）」内容并结构化存储。
 - 摘要与优劣势分析：
   - 使用 LLM 对每个店铺的评论生成 **优势（advantages）** 和 **劣势（disadvantages）** 摘要，各 3–5 条；
-  - 提供 5 星/1 星等分星理由的聚合摘要。
+  - 提供 5 星/1 星等分星理由的聚合摘要；
+  - 在详情中展示「典型问答」和「顾客最新更新」的精简视图，辅助决策。
 - 其它信息：
   - 价格区间；
-  - 评分分布；
-  - 当前营业状态（关联实时验证）。
+  - 平均评分（average rating）；
+  - 评分分布（review distribution）；
+  - 当前营业状态（关联实时验证）；
+  - 来自 Google Maps 的 **popular times / popularTimesHistogram**（按星期 × 小时的客流热度直方图）；
+  - 店铺详细特征列表（detailed characteristics，例如是否适合儿童、是否提供户外座位等）；
+  - 商家社交媒体信息（social media profiles），包括 Facebook / Instagram / TikTok / X / 其它链接，用于前端跳转展示。
 
 **验收标准**
 
 - 摘要能准确反映原始评论的主流观点；
 - 详情页与列表页信息联动一致；
-- 用户能在 1–2 屏内获取关键信息。
+- 用户能在 1–2 屏内获取关键信息，包括：平均评分、评分分布图、热门时段、典型问答与顾客更新、社交媒体跳转入口。
 
 #### 4.1.4 营业时间过滤与公共交通可达性验证（US-07 / US-17 / US-08）
 

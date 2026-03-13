@@ -3,17 +3,25 @@
 
 ## Agent Pipeline
 
-![Agent Workflow](agent_workflow.png)
+The pipeline runs as a LangGraph state machine with parallel branches. Each box is an agent node; arrows show data flow.
 
-The pipeline runs as a LangGraph state machine. Each box is an agent node; arrows show data flow.
+`evaluation_agent` and `review_agent` run in parallel — both receive the candidate list from `transit_calculator` simultaneously. LangGraph merges their outputs before `orchestrator_agent` runs.
+
+<img src="agent_workflow.png" alt="Agent Workflow" width="300"/>
+
+
+
+
 
 | Agent | Role |
 |---|---|
-| **intent_parser** | Takes the user's raw text and calls GPT-4o to extract structured fields: `category`, `requested_time`, `radius_km`, and `constraints`. Defaults missing time to now+1h, missing radius to 5 km. |
-| **retrieval** | Loads providers from the seed file (later: Supabase), filters by category, computes haversine distance from the user's location, and keeps only providers within `radius_km`. On retry, the radius widens by 50%. |
-| **feasibility** | For each candidate, checks that the provider is open on the requested day and that the user can arrive before closing (with a 15-minute buffer). Providers that don't pass are dropped. If zero pass, `retry_count` increments and the pipeline loops back to retrieval. |
-| **ranking** | Scores every feasible provider on a weighted sum of price, distance, and rating — each normalised to [0, 1]. Sorts descending by score. |
-| **explanation** | Reads the score breakdown and attaches the top-3 human-readable reasons to each offer (e.g. "Affordable pricing", "Close by", "Highly rated"). |
+| **intent_parser** | Takes the user's raw text and calls GPT-4o to extract structured fields: `category`, `requested_time`, `radius_km`, and `constraints`. |
+| **crawling_search** | Calls Apify Google Maps scraper to find real businesses near the user. Filters by opening hours. Falls back to local seed file if no Apify token. |
+| **transit_calculator** | Calls SBB public transit API to get real ETA for each candidate. Marks providers as `reachable`, `closing_soon`, or `unreachable`. Drops unreachable ones. Retries with wider radius if no candidates remain. |
+| **evaluation_agent** | Scores every reachable provider on a weighted sum of price, distance, and rating — each normalised to [0, 1]. |
+| **review_agent** | Fetches up to 10 real Google reviews per provider (via Apify) and uses GPT-4o to summarise into advantages and disadvantages. Falls back to LLM-generated summaries when reviews are unavailable. |
+| **orchestrator_agent** | LLM brain: reads user intent + hard scores + review summaries and generates a `one_sentence_recommendation` for each of the top 10 places. |
+| **output_ranking** | Formats the final top-10 list into `PlaceSummary[]` for the API response. |
 
 ---
 
@@ -24,6 +32,23 @@ The pipeline runs as a LangGraph state machine. Each box is an agent node; arrow
 | Framework | FastAPI (Python 3.11+) |
 | Agent orchestration | LangGraph |
 | LLM | OpenAI GPT-4o |
-| Database + Realtime | Supabase (PostgreSQL) |
+| Web scraping | Apify (Google Maps) |
+| Transit | SBB OpenData API |
+| Database | Supabase (PostgreSQL) — optional, falls back to in-memory |
 
 ---
+
+## API
+
+`POST /api/requests/` — run the full pipeline, returns top-10 recommendations
+
+```json
+{
+  "query": "find a good haircut near me",
+  "location": { "lat": 47.3769, "lng": 8.5417 }
+}
+```
+
+Response: `{ "request": {...}, "results": [PlaceSummary x10] }`
+
+See `backend/README.md` for full setup instructions.
