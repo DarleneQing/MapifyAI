@@ -6,10 +6,20 @@ GET  /api/requests/{id}/trace   — fetch agent trace (US-13)
 
 Controller layer: delegates to service layer as defined in
 `doc/controller-service-contract.md`.
+
+SSE streaming (?stream=true):
+  Returns text/event-stream. Each line is:
+    data: {"type": "progress", "agent": "...", "message": "..."}\n\n
+  Final line:
+    data: {"type": "result", "request": {...}, "results": [...]}\n\n
 """
+import asyncio
+import json
+import threading
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.models.schemas import CreateRequestPayload
 
@@ -41,20 +51,96 @@ async def create_request(payload: CreateRequestPayload, stream: bool = False):
 
     structured_request = request_service.create_request(payload, user_id)
 
-    # V2: SSE streaming not implemented yet, keep contract but signal clearly.
-    if stream:
-        raise HTTPException(
-            status_code=501, detail="Streaming mode not implemented yet"
-        )
-
     if orchestrator_service is None:
         raise HTTPException(
             status_code=500, detail="orchestrator_service not configured"
         )
 
     request_id = getattr(structured_request, "id", None) or structured_request["id"]
+
+    if stream:
+        return _sse_response(orchestrator_service, request_id)
+
     ranked_response = orchestrator_service.run_recommendation_pipeline(request_id)
     return ranked_response
+
+
+def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingResponse:
+    """Build an SSE StreamingResponse that streams agent progress then final results."""
+    from app.agents.graph import stream_pipeline
+    from app.models.schemas import AgentTrace
+
+    async def event_generator():
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        def run_pipeline_thread():
+            try:
+                marketplace = orchestrator_service._marketplace
+                request = marketplace.get_request(request_id)
+                if not request:
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "error", "message": "Request not found"},
+                    )
+                    loop.call_soon_threadsafe(queue.put_nowait, None)
+                    return
+
+                preferences = request.get("preferences") or None
+                final_state = None
+
+                for event in stream_pipeline(
+                    request["raw_input"], request["location"], preferences
+                ):
+                    if event["type"] == "result":
+                        final_state = event["state"]
+                    else:
+                        loop.call_soon_threadsafe(queue.put_nowait, event)
+
+                # Cache places in place_service
+                if orchestrator_service.place_service is not None and final_state:
+                    candidates = final_state.get("candidate_providers") or []
+                    if candidates:
+                        orchestrator_service.place_service.cache_places(candidates)
+
+                # Build the final result event
+                if final_state:
+                    structured_request = final_state.get("structured_request") or request
+                    if isinstance(structured_request, dict):
+                        structured_request["id"] = request_id
+                    results = final_state.get("final_results") or []
+                    trace = final_state.get("trace") or AgentTrace(
+                        request_id=request_id, steps=[]
+                    ).model_dump()
+                    if isinstance(trace, dict):
+                        trace["request_id"] = request_id
+                    if orchestrator_service._trace_service is not None:
+                        orchestrator_service._trace_service.store_trace(request_id, trace)
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "result", "request": structured_request, "results": results},
+                    )
+                else:
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait,
+                        {"type": "error", "message": "Pipeline returned no state"},
+                    )
+            except Exception as exc:
+                loop.call_soon_threadsafe(
+                    queue.put_nowait, {"type": "error", "message": str(exc)}
+                )
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)  # sentinel
+
+        threading.Thread(target=run_pipeline_thread, daemon=True).start()
+
+        while True:
+            event = await queue.get()
+            if event is None:
+                break
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/{request_id}")

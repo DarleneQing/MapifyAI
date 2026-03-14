@@ -52,7 +52,6 @@ def run(state: PlannerState) -> PlannerState:
     loc = state["location"]
 
     raw_input = state["raw_input"]
-    print(f"Intent Parser received raw_input: '{raw_input}'")
 
     prompt = SYSTEM_PROMPT.format(
         today=now.strftime("%Y-%m-%d"),
@@ -71,7 +70,6 @@ def run(state: PlannerState) -> PlannerState:
     )
     parsed = json.loads(response.choices[0].message.content)
 
-    print(f"Intent Parser output: {parsed}")
 
     # Fallback for missing time
     if not parsed.get("requested_time"):

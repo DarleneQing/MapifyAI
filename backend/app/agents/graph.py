@@ -324,19 +324,17 @@ def build_graph():
 pipeline = build_graph()
 
 
-def run_pipeline(
+def _build_initial_state(
     raw_input: str,
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
 ) -> PlannerState:
-    """Entry point called by the API layer. Returns the final PlannerState."""
-    # Normalize location to dict for state
+    """Build the initial LangGraph state dict."""
     if isinstance(location, LatLng):
         location_dict = location.model_dump()
     else:
         location_dict = location
 
-    # Normalize preferences to dict for state
     if isinstance(preferences, UserPreferences):
         prefs_dict = preferences.model_dump()
     elif preferences is None:
@@ -348,18 +346,65 @@ def run_pipeline(
     else:
         prefs_dict = preferences
 
-    initial_state: PlannerState = {
+    return {
         "retry_count": 0,
         "raw_input": raw_input,
         "location": location_dict,
         "preferences": prefs_dict,
         "structured_request": None,
         "candidate_providers": [],
-        "feasible_providers": [],
         "ranked_offers": [],
         "review_summaries": [],
         "final_results": [],
         "trace": make_trace(request_id="pending"),
         "error": None,
     }
+
+
+def run_pipeline(
+    raw_input: str,
+    location: LatLng | dict,
+    preferences: UserPreferences | dict | None = None,
+) -> PlannerState:
+    """Entry point called by the API layer. Returns the final PlannerState."""
+    initial_state = _build_initial_state(raw_input, location, preferences)
     return pipeline.invoke(initial_state)
+
+
+# Human-readable messages shown to the user for each agent step
+AGENT_PROGRESS_MESSAGES: dict[str, str] = {
+    "intent_parser": "Understanding your request...",
+    "crawling_search": "Searching Google Maps for nearby places...",
+    "transit_calculator": "Calculating transit times via SBB...",
+    "evaluation_agent": "Scoring and ranking candidates...",
+    "review_agent": "Summarizing customer reviews...",
+    "orchestrator_agent": "Generating personalized recommendations...",
+    "output_ranking": "Finalizing your top results...",
+}
+
+
+def stream_pipeline(
+    raw_input: str,
+    location: LatLng | dict,
+    preferences: UserPreferences | dict | None = None,
+):
+    """
+    Generator that uses LangGraph's .stream() to yield progress events as each
+    agent node completes.
+
+    Yields dicts:
+      {"type": "progress", "agent": <name>, "message": <human-readable text>}
+      ...
+      {"type": "result", "state": <final PlannerState>}
+    """
+    initial_state = _build_initial_state(raw_input, location, preferences)
+    final_state: PlannerState | None = None
+
+    for chunk in pipeline.stream(initial_state):
+        # chunk = {node_name: partial_state_dict}
+        node_name = next(iter(chunk))
+        final_state = chunk[node_name]  # last chunk carries full merged state
+        message = AGENT_PROGRESS_MESSAGES.get(node_name, f"{node_name} completed")
+        yield {"type": "progress", "agent": node_name, "message": message}
+
+    yield {"type": "result", "state": final_state}
