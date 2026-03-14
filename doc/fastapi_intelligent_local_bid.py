@@ -286,7 +286,7 @@ async def request_sse_generator(request_id: str):
     """SSE event sequence for the 6-agent pipeline:
     1. event: intent_parsed       — Input Agent completed
     2. event: stores_crawled      — Crawling Agent Sub-1 (Apify store search) completed
-    3. event: transit_computed    — Crawling Agent Sub-2 (SBB ETA) completed
+    3. event: transit_computed    — Crawling Agent Sub-2 (Swiss Transit ETA) completed
     4. event: reviews_fetched     — Review Agent (Apify reviews + LLM summary) completed
     5. event: scores_computed     — Evaluation Agent completed
     6. event: recommendations_ready — Orchestrator Agent completed

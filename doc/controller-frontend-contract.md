@@ -100,7 +100,7 @@
   "results": [ /* PlaceSummary[] 基础信息 */ ]
 }
 
-// event: transit_computed — Crawling Agent Sub-2 (SBB API) 完成交通计算
+// event: transit_computed — Crawling Agent Sub-2 (Swiss Transit API) 完成交通计算
 {
   "type": "transit_computed",
   "request_id": "req_123",
@@ -153,6 +153,12 @@
   - 收到 `completed`：
     - 用最终 `results` 替换本地列表（含 `one_sentence_recommendation`）。
     - 关闭 loading / 显示“已为你找到 X 个地点”。
+
+- **前端结果缓存策略（ChatContext）**：
+  - 搜索结果存入 React Context（`ChatContext`），在用户切换 Tab 时保持数据。
+  - 当用户从其他页面返回时，前端优先使用 `ChatContext` 中的缓存数据，避免重复调用 API。
+  - 数据源优先级：Navigation State > ChatContext > API 调用。
+  - 详见 `frontend-architecture.md` § 9 State Management - ChatContext。
 
 **方式 B：先 `POST` 拿 `request_id`，再用 `GET /api/requests/{id}/stream` 开 SSE**  
 见下文 2.3。
@@ -207,7 +213,7 @@
   - `rating_count`: number
   - `recommendation_score`: number（用于排序）
   - `status`: `"open_now" | "closing_soon" | "closed"`
-  - `transit`: object — 公共交通信息（来自 SBB API）
+  - `transit`: object — 公共交通信息（来自 Swiss Transit API）
     - `duration_minutes`: number
     - `transport_types`: string[]（如 `["tram"]` 或 `["tram", "bus"]`）
     - `departure_time`: string（如 `"17:45"`）
@@ -562,7 +568,7 @@
       "agent_name": "crawling_agent_transit",
       "status": "success",
       "duration_ms": 1500,
-      "input_summary": "SBB API: 12 个目的地",
+      "input_summary": "Swiss Transit API: 12 个目的地",
       "output_summary": "已计算 12 条公共交通路线（tram/bus/train）"
     }
   ],
@@ -663,6 +669,61 @@
     - 节流/防抖向 `/api/location/current` 上报；
   - 地图组件、搜索表单都从该 hook 中读取当前 `lat/lng`，保证一致性。
 
+### 9.4 当前实现：位置获取策略
+
+当前 `useDeviceLocation` hook 采用以下策略获取用户位置：
+
+1. **默认位置**：瑞士苏黎世（lat: 47.3769, lng: 8.5417）
+2. **获取顺序**：
+   - 若为安全上下文（HTTPS 或 localhost）：尝试浏览器 `getCurrentPosition`（一次性获取，非持续追踪）
+   - 若浏览器定位失败或非安全上下文：使用 IP 地理定位（`ip-api.com`，城市级精度）
+   - 若 IP 定位也失败：回退到默认位置（苏黎世）
+3. **单例模式**：位置仅获取一次并全局缓存，避免重复请求和 UI 抖动
+
+```
+┌─────────────────────────────────────┐
+│     Start: Get User Location        │
+└─────────────────┬───────────────────┘
+                  │
+        ┌─────────────────┐
+        │ Secure Context? │
+        │ (HTTPS/localhost)│
+        └────────┬────────┘
+                 │
+         ┌───────┴───────┐
+         │ No            │ Yes
+         ▼               ▼
+┌─────────────┐  ┌──────────────────┐
+│ Try IP API  │  │ Try Browser GPS  │
+└──────┬──────┘  └────────┬─────────┘
+       │                  │
+       │           ┌──────┴──────┐
+       │           │ Success?    │
+       │           └──────┬──────┘
+       │            No    │ Yes
+       │            ▼     ▼
+       │     ┌──────────┐ ┌──────────┐
+       │     │Try IP API│ │Use GPS   │
+       │     └────┬─────┘ │Location  │
+       │          │       └──────────┘
+       └──────────┼───────────────────┘
+                  │
+         ┌────────┴────────┐
+         │ IP Success?     │
+         └────────┬────────┘
+           No     │ Yes
+           ▼      ▼
+    ┌──────────┐ ┌──────────────┐
+    │ Zurich   │ │ IP Location  │
+    │ Default  │ │ (City-level) │
+    └──────────┘ └──────────────┘
+```
+
+> **注意**：
+> - 本地开发（HTTP）时，浏览器 Geolocation API 可能返回 403 错误，此时自动回退到 IP 定位。
+> - 位置模块不再使用 `watchPosition` 持续追踪，改为一次性获取，适合原型开发场景。
+> - 如需恢复持续追踪功能，可修改 `useDeviceLocation.ts` 中的实现。
+
 ---
 
 ## 10. 总结：前端主要使用的接口列表
@@ -734,7 +795,7 @@ export interface StructuredRequest {
   created_at: string | null; // ISO datetime
 }
 
-// SBB 公共交通换乘段
+// Swiss Transit 公共交通换乘段
 export type TransportType = "train" | "bus" | "tram" | "walk";
 
 export interface TransitConnection {
@@ -747,7 +808,7 @@ export interface TransitConnection {
   to_stop?: string | null;
 }
 
-// SBB 公共交通信息
+// Swiss Transit 公共交通信息
 export interface TransitInfo {
   duration_minutes: number;
   transport_types: TransportType[];

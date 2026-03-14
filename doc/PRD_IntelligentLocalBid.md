@@ -22,7 +22,7 @@
   - 提供 LLM 驱动的评论摘要与可解释的推荐理由。
 - **技术亮点**
   - 使用 **LangGraph** 搭建有状态、多 Agent 的 DAG 调度工作流，包含 6 大 Agent 模块：Input Agent、Crawling Agent（含 2 个子 Agent）、Evaluation Agent、Review Agent、Orchestrator Agent、Output Agent（含 2 个子 Agent）。
-  - 集成 **Apify Google Maps scraper** 实现店铺搜索与评论抓取，集成 **SBB API** 获取瑞士公共交通实时 ETA（含交通方式：火车/公交/电车）。
+  - 集成 **Apify Google Maps scraper** 实现店铺搜索与评论抓取，集成 **Swiss Transit API（transport.opendata.ch）** 获取瑞士公共交通实时 ETA（含交通方式：火车/公交/电车）。
   - 展示多 Agent 并发执行（Crawling Agent 与 Review Agent 并行）、状态追踪和降级策略等工程能力。
 
 ### 1.3 文档目标
@@ -208,11 +208,11 @@
 **需求要点**
 
 - **Crawling Agent Sub-1**：使用 **Apify Google Maps scraper** 获取店铺列表及营业时间，在抓取阶段即排除营业时间不匹配用户意图时间窗口的店铺；
-- **Crawling Agent Sub-2**：使用 **SBB API** 查询用户当前位置到各候选店铺的公共交通路线，返回：
+- **Crawling Agent Sub-2**：使用 **Swiss Transit API（transport.opendata.ch）** 查询用户当前位置到各候选店铺的公共交通路线，返回：
   - `duration_minutes`：预计出行时长；
   - `transport_type`：交通方式（train / bus / tram）；
   - `departure_time`：最近可出发时间；
-- 根据当前时间 + SBB 出行时间，判断：
+- 根据当前时间 + 公共交通出行时间，判断：
   - 营业中且可达；
   - 即将关门（例如 30 分钟内关门且预计行程时间接近上限）；
   - 已关门/不可达。
@@ -224,7 +224,7 @@
 
 - 典型场景中，推荐列表不会出现明显“已关门”但仍排名很靠前的结果；
 - 列表条目有可视化的状态标记（营业中/即将关门/已关门）；
-- 每条结果包含 SBB 公共交通信息（时长 + 交通方式）。
+- 每条结果包含公共交通信息（时长 + 交通方式）。
 
 #### 4.1.5 Multi-Agent 系统架构（US-13 ~ US-17）
 
@@ -237,7 +237,7 @@
   1. **Input Agent**（意图理解）：解析用户自然语言输入，输出结构化意图 JSON（服务类型、位置、时间窗口、预算、特殊需求等）；
   2. **Crawling Agent**（数据抓取，含 2 个子 Agent）：
      - **Sub-1（Store Crawler）**：根据用户位置和意图，调用 **Apify Google Maps scraper** 获取候选店铺列表，排除营业时间不匹配用户时间窗口的店铺；
-     - **Sub-2（Transit Calculator）**：调用 **SBB API** 查询用户到每个候选店铺的公共交通路线，返回出行时长（duration）、交通方式（train/bus/tram）、最近出发时间（departure_time）；
+     - **Sub-2（Transit Calculator）**：调用 **Swiss Transit API（transport.opendata.ch）** 查询用户到每个候选店铺的公共交通路线，返回出行时长（duration）、交通方式（train/bus/tram）、最近出发时间（departure_time）；
   3. **Evaluation Agent**（评分计算）：根据用户偏好权重（价格/距离/评分/交通时间等），为每个店铺计算综合推荐分，输出带分数的候选列表；
   4. **Review Agent**（评论分析）：使用 **Apify Google Maps review scraper** 批量抓取所有候选店铺的评论文本，通过 LLM 为每个店铺生成优势（advantages）和劣势（disadvantages）摘要；
   5. **Orchestrator Agent**（结果聚合与优化）：收集 Evaluation Agent 和 Review Agent 的输出，整合评分、评论摘要和交通信息，精炼为最终推荐列表，并为每条推荐生成可解释的推荐理由；
@@ -273,7 +273,7 @@
 
 - **降级策略**：
   - Review Agent 失败时：推荐列表仍可返回，评论摘要字段留空或以占位符替代；
-  - SBB API 不可用时：回退到基于 haversine 距离的简单 ETA 估算；
+  - Swiss Transit API 不可用时：回退到基于 haversine 距离的简单 ETA 估算；
   - 某个子 Agent 失败只影响部分字段，不阻塞整体返回；
   - 对失败原因进行日志记录。
 
@@ -467,7 +467,7 @@
   - 6 大 Agent 模块：Input Agent、Crawling Agent、Evaluation Agent、Review Agent、Orchestrator Agent、Output Agent。
 - 数据源与存储：
   - **Apify Google Maps scraper**（店铺搜索 + 营业时间 + 评论抓取）；
-  - **SBB API**（公共交通 ETA：时长、交通方式 train/bus/tram、出发时间）；
+  - **Swiss Transit API（transport.opendata.ch）**（公共交通 ETA：时长、交通方式 train/bus/tram、出发时间）；
   - Supabase（用户画像、偏好、基础日志）。
 
 ### 6.1 Provider 端与 Offer 模型（补充自 Provider Bid/Offer 版本）

@@ -26,13 +26,16 @@ class RequestService:
         request_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
 
+        raw_input = payload.get_raw_input()
+        print(f"RequestService received payload.query='{payload.query}', raw_input='{raw_input}'")
+
         constraints: dict[str, Any] = {}
         if user_id:
             constraints["user_id"] = user_id
 
         structured = StructuredRequest(
             id=request_id,
-            raw_input=payload.get_raw_input(),
+            raw_input=raw_input,
             category="general",
             requested_time=now,
             location=payload.location,

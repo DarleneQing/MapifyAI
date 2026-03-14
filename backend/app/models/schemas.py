@@ -19,11 +19,12 @@ class LatLng(BaseModel):
 class StructuredRequest(BaseModel):
     id: str
     raw_input: str
-    category: str               # e.g. "haircut", "massage", "repair"
+    category: str               # e.g. "food_drink", "personal_care", "health"
+    keywords: str = ""          # actual search terms e.g. "coffee", "italian restaurant"
     requested_time: datetime
     location: LatLng
     radius_km: float = 5.0
-    constraints: dict[str, Any] = {}   # {"max_price": 80, "language": "en", ...}
+    constraints: dict[str, Any] = {}   # {"max_price": 80, "language": "en", "cuisine": "italian", ...}
     status: str = "pending"     # "pending" | "open" | "closed"
     created_at: datetime | None = None
 
