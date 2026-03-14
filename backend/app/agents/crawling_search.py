@@ -13,6 +13,7 @@ from datetime import datetime
 
 from app.agents.state import PlannerState
 from app.agents.trace import add_step
+from app.models.schemas import LatLng, OpeningHours
 from app.services.apify_search import search_places
 from app.services.geo import haversine_km
 
@@ -79,35 +80,33 @@ def convert_12h_range_to_24h(range_str: str) -> str:
     return f"{oh:02d}:{om:02d}-{ch:02d}:{cm:02d}"
 
 
-def parse_apify_hours(apify_hours: list[dict] | None) -> dict:
+def parse_apify_hours(apify_hours: list[dict] | None) -> OpeningHours:
     """
-    Convert Apify openingHours list to our internal format.
+    Convert Apify openingHours list to OpeningHours model.
 
     Input:  [{"day": "Monday", "hours": "11:30 AM-11 PM"}, ...]
-    Output: {"mon": "11:30-23:00", "tue": ..., "sun": None}
+    Output: OpeningHours(mon="11:30-23:00", tue=..., sun=None)
     """
-    result = {abbr: None for abbr in DAY_MAP.values()}
+    result: dict[str, str | None] = {abbr: None for abbr in DAY_MAP.values()}
 
-    if not apify_hours:
-        return result
+    if apify_hours:
+        for entry in apify_hours:
+            day_full = entry.get("day", "").lower()
+            hours_str = entry.get("hours", "")
+            abbr = DAY_MAP.get(day_full)
+            if not abbr:
+                continue
 
-    for entry in apify_hours:
-        day_full = entry.get("day", "").lower()
-        hours_str = entry.get("hours", "")
-        abbr = DAY_MAP.get(day_full)
-        if not abbr:
-            continue
+            if not hours_str or hours_str.lower() == "closed":
+                result[abbr] = None
+                continue
 
-        if not hours_str or hours_str.lower() == "closed":
-            result[abbr] = None
-            continue
+            try:
+                result[abbr] = convert_12h_range_to_24h(hours_str)
+            except (ValueError, IndexError):
+                result[abbr] = None
 
-        try:
-            result[abbr] = convert_12h_range_to_24h(hours_str)
-        except (ValueError, IndexError):
-            result[abbr] = None
-
-    return result
+    return OpeningHours(**result)
 
 
 def _time_to_minutes(h: int, m: int) -> int:
@@ -219,17 +218,21 @@ def transform_apify_result(
     detailed_characteristics = result.get("detailedCharacteristics")
     customer_updates = result.get("updatesFromCustomers")
 
+    # Use LatLng and OpeningHours models for validation
+    location = LatLng(lat=store_lat, lng=store_lng)
+    opening_hours = parse_apify_hours(result.get("openingHours"))
+
     return {
         "id": result.get("placeId") or str(uuid.uuid4()),
         "name": name,
         "category": category,
-        "location": {"lat": store_lat, "lng": store_lng},
+        "location": location.model_dump(),
         "address": result.get("address", ""),
         "rating": float(rating),
         "review_count": int(review_count),
         "price_range": price_range,
         "average_rating": float(rating),
-        "opening_hours": parse_apify_hours(result.get("openingHours")),
+        "opening_hours": opening_hours.model_dump(),
         "website_url": result.get("website"),
         "google_maps_url": url,
         "distance_km": round(

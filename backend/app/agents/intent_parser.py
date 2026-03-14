@@ -20,6 +20,7 @@ from openai import OpenAI
 from app.agents.state import PlannerState
 from app.agents.trace import add_step
 from app.config import OPENAI_API_KEY, DEFAULT_MODEL
+from app.models.schemas import StructuredRequest, LatLng
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -76,25 +77,36 @@ def run(state: PlannerState) -> PlannerState:
     if not parsed.get("requested_time"):
         parsed["requested_time"] = (now + timedelta(hours=1)).isoformat()
 
-    structured = {
-        "id": str(uuid.uuid4()),
-        "raw_input": state["raw_input"],
-        "category": parsed.get("category", "general"),
-        "keywords": parsed.get("keywords", ""),
-        "requested_time": parsed["requested_time"],
-        "location": state["location"],
-        "radius_km": parsed.get("radius_km", 5.0),
-        "constraints": parsed.get("constraints", {}),
-        "status": "open",
-        "created_at": datetime.now().isoformat(),
-    }
+    # Parse requested_time to datetime
+    requested_time = parsed["requested_time"]
+    if isinstance(requested_time, str):
+        requested_time = datetime.fromisoformat(requested_time.replace("Z", "+00:00"))
 
-    state["structured_request"] = structured
+    # Build location using LatLng model
+    loc_data = state["location"]
+    location = LatLng(lat=loc_data["lat"], lng=loc_data["lng"])
+
+    # Create validated StructuredRequest
+    structured_request = StructuredRequest(
+        id=str(uuid.uuid4()),
+        raw_input=state["raw_input"],
+        category=parsed.get("category", "general"),
+        keywords=parsed.get("keywords", ""),
+        requested_time=requested_time,
+        location=location,
+        radius_km=parsed.get("radius_km", 5.0),
+        constraints=parsed.get("constraints", {}),
+        status="open",
+        created_at=datetime.now(),
+    )
+
+    # Convert to dict for LangGraph state (TypedDict requires dict)
+    state["structured_request"] = structured_request.model_dump(mode="json")
     state["trace"] = add_step(
         state["trace"],
         agent="intent_parser",
         input_data={"raw_input": state["raw_input"]},
-        output_data={"structured_request": structured},
+        output_data={"structured_request": state["structured_request"]},
         start_ms=start,
     )
     return state

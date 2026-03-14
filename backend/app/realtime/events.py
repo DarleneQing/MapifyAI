@@ -16,9 +16,10 @@ Supabase Python client broadcast example:
 Docs: https://supabase.com/docs/reference/python/broadcast
 """
 from app.models.db import get_db
+from app.models.schemas import Offer
 
 
-def broadcast_new_offer(request_id: str, offer: dict) -> None:
+def broadcast_new_offer(request_id: str, offer: Offer | dict) -> None:
     """
     TODO (Backend-2):
       channel = get_db().channel(f"request:{request_id}")

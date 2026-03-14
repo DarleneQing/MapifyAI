@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import httpx
+from pydantic import BaseModel
 
 from app.services.geo import haversine_km
 
@@ -43,8 +43,7 @@ CATEGORY_TO_MODE = {
 }
 
 
-@dataclass
-class TransitResult:
+class TransitResult(BaseModel):
     duration_minutes: int
     departure_time: str
     arrival_time: str

@@ -34,7 +34,7 @@ from app.agents import intent_parser
 from app.agents.state import PlannerState
 from app.agents.trace import add_step, make_trace
 from app.config import APIFY_API_TOKEN, OPENAI_API_KEY, DEFAULT_MODEL
-from app.models.schemas import UserPreferences
+from app.models.schemas import UserPreferences, LatLng
 
 
 # ---------------------------------------------------------------------------
@@ -324,17 +324,35 @@ def build_graph():
 pipeline = build_graph()
 
 
-def run_pipeline(raw_input: str, location: dict, preferences: dict | None = None) -> PlannerState:
+def run_pipeline(
+    raw_input: str,
+    location: LatLng | dict,
+    preferences: UserPreferences | dict | None = None,
+) -> PlannerState:
     """Entry point called by the API layer. Returns the final PlannerState."""
-    initial_state: PlannerState = {
-        "retry_count": 0,
-        "raw_input": raw_input,
-        "location": location,
-        "preferences": preferences or {
+    # Normalize location to dict for state
+    if isinstance(location, LatLng):
+        location_dict = location.model_dump()
+    else:
+        location_dict = location
+
+    # Normalize preferences to dict for state
+    if isinstance(preferences, UserPreferences):
+        prefs_dict = preferences.model_dump()
+    elif preferences is None:
+        prefs_dict = {
             "weight_price": 0.33,
             "weight_distance": 0.33,
             "weight_rating": 0.34,
-        },
+        }
+    else:
+        prefs_dict = preferences
+
+    initial_state: PlannerState = {
+        "retry_count": 0,
+        "raw_input": raw_input,
+        "location": location_dict,
+        "preferences": prefs_dict,
         "structured_request": None,
         "candidate_providers": [],
         "feasible_providers": [],
