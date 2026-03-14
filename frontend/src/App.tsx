@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SavedPlacesProvider } from "@/contexts/SavedPlacesContext";
+import { ChatProvider } from "@/contexts/ChatContext";
 import AIChatOverlay from "@/components/AIChatOverlay";
 import Index from "./pages/Index";
 import Explore from "./pages/Explore";
@@ -29,6 +30,7 @@ const App = () => (
     <LanguageProvider>
       <AuthProvider>
         <SavedPlacesProvider>
+        <ChatProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -52,6 +54,7 @@ const App = () => (
             <DebugTraceWrapper />
           </BrowserRouter>
         </TooltipProvider>
+        </ChatProvider>
         </SavedPlacesProvider>
       </AuthProvider>
     </LanguageProvider>

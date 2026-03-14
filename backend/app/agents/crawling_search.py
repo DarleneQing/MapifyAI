@@ -259,13 +259,16 @@ def run(state: PlannerState) -> PlannerState:
     loc = req["location"]
     radius = req.get("radius_km", 5.0)
     category = req.get("category", "")
+    keywords = req.get("keywords", "")
+
+    search_term = keywords if keywords else category
 
     retry = state.get("retry_count", 0)
     if retry > 0:
         radius *= 1 + 0.5 * retry
 
     raw_results = search_places(
-        term=category,
+        term=search_term,
         lat=loc["lat"],
         lng=loc["lng"],
         radius_km=radius,
@@ -285,6 +288,8 @@ def run(state: PlannerState) -> PlannerState:
         agent="crawling_search",
         input_data={
             "category": category,
+            "keywords": keywords,
+            "search_term": search_term,
             "location": loc,
             "radius_km": radius,
             "apify_results": len(raw_results),

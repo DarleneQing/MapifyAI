@@ -60,10 +60,15 @@ function createPinIcon(name: string, hasBidding: boolean, isSelected: boolean, d
     : "filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15));";
   const tagSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${tagColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="${tagColor}"/></svg>`;
 
+  // Only animate on initial render (delay > 0), not on selection changes
+  const animationStyle = delay > 0 
+    ? `animation:pin-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) ${delay}ms both;`
+    : "";
+
   return L.divIcon({
     className: "custom-pin",
     html: `
-      <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:0;${shadowStyle}animation:pin-drop 0.4s cubic-bezier(0.34,1.56,0.64,1) ${delay}ms both;">
+      <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:0;${shadowStyle}${animationStyle}">
         <div style="display:flex;align-items:center;gap:5px;padding:6px 12px 6px 10px;border-radius:20px;font-size:13px;font-weight:600;background:${bg};color:${text};white-space:nowrap;">
           ${tagSvg}
           <span style="overflow:hidden;text-overflow:ellipsis;max-width:100px;line-height:1.2;">${name}</span>
@@ -117,11 +122,13 @@ const Index = () => {
     setActiveVibes((prev) => prev.includes(vibe) ? prev.filter((v) => v !== vibe) : [...prev, vibe]);
   };
 
-  const filteredMerchants = MOCK_MERCHANTS.filter((m) => {
-    const matchCategory = !activeCategory || m.category.toLowerCase() === activeCategory;
-    const matchVibe = activeVibes.length === 0 || activeVibes.some((v) => (PLACE_VIBES[m.id] || []).includes(v));
-    return matchCategory && matchVibe;
-  });
+  const filteredMerchants = useMemo(() => {
+    return MOCK_MERCHANTS.filter((m) => {
+      const matchCategory = !activeCategory || m.category.toLowerCase() === activeCategory;
+      const matchVibe = activeVibes.length === 0 || activeVibes.some((v) => (PLACE_VIBES[m.id] || []).includes(v));
+      return matchCategory && matchVibe;
+    });
+  }, [activeCategory, activeVibes]);
 
   const selectedMerchant = MOCK_MERCHANTS.find((m) => m.id === selectedPin);
 
@@ -185,7 +192,7 @@ const Index = () => {
     }
   }, [centerLat, centerLng]);
 
-  // Update merchant markers
+  // Create merchant markers (only when filtered list changes)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -195,20 +202,40 @@ const Index = () => {
     markersRef.current = [];
 
     filteredMerchants.forEach((merchant, idx) => {
-      const isSelected = selectedPin === merchant.id;
       const marker = L.marker([merchant.lat, merchant.lng], {
         icon: createPinIcon(
           merchant.name.split(" ").slice(0, 2).join(" "),
           merchant.hasBidding,
-          isSelected,
+          false, // Start unselected, selection handled separately
           idx * 80 // stagger delay per pin
         ),
       }).addTo(map);
 
+      (marker as any)._merchantId = merchant.id;
+      (marker as any)._merchantName = merchant.name;
+      (marker as any)._merchantHasBidding = merchant.hasBidding;
       marker.on("click", () => handlePinClick(merchant.id));
       markersRef.current.push(marker);
     });
-  }, [filteredMerchants, selectedPin, handlePinClick]);
+  }, [filteredMerchants, handlePinClick]);
+
+  // Update selected marker icon (no animation, just style change)
+  useEffect(() => {
+    markersRef.current.forEach((marker) => {
+      const id = (marker as any)._merchantId;
+      const name = (marker as any)._merchantName;
+      const hasBidding = (marker as any)._merchantHasBidding;
+      const isSelected = selectedPin === id;
+      marker.setIcon(
+        createPinIcon(
+          name.split(" ").slice(0, 2).join(" "),
+          hasBidding,
+          isSelected,
+          0 // No animation delay for selection changes
+        )
+      );
+    });
+  }, [selectedPin]);
 
   return (
     <div className="h-[100dvh] flex flex-col relative overflow-hidden">

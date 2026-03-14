@@ -96,51 +96,44 @@ export function useNotifications() {
   const templateIdx = useRef(0);
   const timerRef = useRef<number | null>(null);
 
-  // Simulate merchant pushes every 12-20 seconds
-  useEffect(() => {
-    const scheduleNext = () => {
-      const delay = 12000 + Math.random() * 8000;
-      timerRef.current = window.setTimeout(() => {
-        const template = NOTIFICATION_TEMPLATES[templateIdx.current % NOTIFICATION_TEMPLATES.length];
-        templateIdx.current++;
-
-        const notif: MerchantNotification = {
-          ...template,
-          id: `notif-${Date.now()}`,
-          timestamp: Date.now(),
-          read: false,
-        };
-
-        setNotifications((prev) => [notif, ...prev].slice(0, 50));
-        setLatestPush(notif);
-
-        // Clear toast after 4s
-        setTimeout(() => setLatestPush(null), 4000);
-
-        scheduleNext();
-      }, delay);
-    };
-
-    // Push first notification after 5 seconds
-    timerRef.current = window.setTimeout(() => {
-      const template = NOTIFICATION_TEMPLATES[0];
-      templateIdx.current = 1;
-      const notif: MerchantNotification = {
-        ...template,
-        id: `notif-${Date.now()}`,
-        timestamp: Date.now(),
-        read: false,
-      };
-      setNotifications([notif]);
-      setLatestPush(notif);
-      setTimeout(() => setLatestPush(null), 4000);
-      scheduleNext();
-    }, 5000);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
+  // Simulate merchant pushes - DISABLED for prototyping
+  // Uncomment to enable fake notification simulation
+  // useEffect(() => {
+  //   const scheduleNext = () => {
+  //     const delay = 12000 + Math.random() * 8000;
+  //     timerRef.current = window.setTimeout(() => {
+  //       const template = NOTIFICATION_TEMPLATES[templateIdx.current % NOTIFICATION_TEMPLATES.length];
+  //       templateIdx.current++;
+  //       const notif: MerchantNotification = {
+  //         ...template,
+  //         id: `notif-${Date.now()}`,
+  //         timestamp: Date.now(),
+  //         read: false,
+  //       };
+  //       setNotifications((prev) => [notif, ...prev].slice(0, 50));
+  //       setLatestPush(notif);
+  //       setTimeout(() => setLatestPush(null), 4000);
+  //       scheduleNext();
+  //     }, delay);
+  //   };
+  //   timerRef.current = window.setTimeout(() => {
+  //     const template = NOTIFICATION_TEMPLATES[0];
+  //     templateIdx.current = 1;
+  //     const notif: MerchantNotification = {
+  //       ...template,
+  //       id: `notif-${Date.now()}`,
+  //       timestamp: Date.now(),
+  //       read: false,
+  //     };
+  //     setNotifications([notif]);
+  //     setLatestPush(notif);
+  //     setTimeout(() => setLatestPush(null), 4000);
+  //     scheduleNext();
+  //   }, 5000);
+  //   return () => {
+  //     if (timerRef.current) clearTimeout(timerRef.current);
+  //   };
+  // }, []);
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) =>

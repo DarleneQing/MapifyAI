@@ -217,6 +217,17 @@ export default function AIChatOverlay() {
   const hideFAB =
     !isMerchant && (location.pathname === "/" || location.pathname === "/chat");
   const showExploreHide = location.pathname === "/" && !isMerchant;
+  
+  // On recommendations page, FAB should navigate back to chat (to preserve conversation)
+  const shouldNavigateToChat = location.pathname === "/recommendations" && !isMerchant;
+
+  const handleFABClick = () => {
+    if (shouldNavigateToChat) {
+      navigate("/chat");
+    } else {
+      setIsOpen(true);
+    }
+  };
 
   return (
     <>
@@ -228,7 +239,7 @@ export default function AIChatOverlay() {
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => setIsOpen(true)}
+            onClick={handleFABClick}
             className="fixed bottom-20 right-4 z-50 w-14 h-14 rounded-full bg-primary shadow-lg flex items-center justify-center"
             style={{ boxShadow: "0 4px 20px hsl(var(--primary) / 0.4)" }}
           >

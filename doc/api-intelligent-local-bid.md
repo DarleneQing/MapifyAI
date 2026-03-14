@@ -121,6 +121,8 @@
 
 #### 2.3 PlaceDetail 模型（地点详情）
 
+`PlaceDetail` 是 `GET /api/places/{place_id}` 响应体（`PlaceDetailResponse`）中 `detail` 字段的内容：
+
 ```json
 {
   "place": {
@@ -138,7 +140,16 @@
       "today_open": "10:00",
       "today_close": "20:00",
       "is_open_now": true
-    }
+    },
+    "social_profiles": {
+      "facebook": "https://facebook.com/awesome-hair-salon",
+      "instagram": "https://instagram.com/awesome-hair-salon"
+    },
+    "popular_times": {
+      "mon": [0, 10, 30, 50, 40, 20],
+      "tue": [0, 5, 15, 35, 45, 25]
+    },
+    "detailed_characteristics": ["Kid-friendly", "Wheelchair accessible"]
   },
   "review_summary": {
     "advantages": [
@@ -167,10 +178,25 @@
     "4": 40,
     "5": 65
   },
+  "questions_and_answers": [
+    { "question": "Do you have Wi‑Fi?", "answer": "Yes, free Wi‑Fi is available." }
+  ],
+  "customer_updates": [
+    { "text": "Now open on Sundays", "language": "en" }
+  ],
   "recommendation_reasons": [
     "价格符合您的预算",
     "当前营业中，预计 15 分钟可到达"
   ]
+}
+```
+
+完整的 API 响应 `PlaceDetailResponse` 结构：
+
+```json
+{
+  "request_id": "req_123",
+  "detail": { /* PlaceDetail 如上 */ }
 }
 ```
 
@@ -305,7 +331,7 @@
   "results": [ /* PlaceSummary[] 基础信息，尚无评分和评论 */ ]
 }
 
-// event: transit_computed — Crawling Agent Sub-2 (SBB API) 完成交通计算
+// event: transit_computed — Crawling Agent Sub-2 (Swiss Transit API) 完成交通计算
 {
   "type": "transit_computed",
   "request_id": "req_123",
@@ -382,10 +408,81 @@
 
 **响应：**
 
+返回结构遵循 `PlaceDetailResponse` 契约，包含 `request_id` 和嵌套的 `detail` 对象：
+
 ```json
 {
   "request_id": "req_123",
-  "detail": { /* PlaceDetail */ }
+  "detail": {
+    "place": {
+      "place_id": "gmp_123",
+      "name": "Awesome Hair Salon",
+      "address": "Some street 1, City",
+      "phone": "+41 12 345 67 89",
+      "website": "https://example.com",
+      "location": { "lat": 47.3769, "lng": 8.5417 },
+      "rating": 4.6,
+      "rating_count": 123,
+      "price_level": "medium",
+      "status": "open_now",
+      "opening_hours": {
+        "today_open": "10:00",
+        "today_close": "20:00",
+        "is_open_now": true
+      },
+      "social_profiles": {
+        "facebook": "https://facebook.com/awesome-hair-salon",
+        "instagram": "https://instagram.com/awesome-hair-salon"
+      },
+      "popular_times": {
+        "mon": [0, 10, 30, 50, 40, 20],
+        "tue": [0, 5, 15, 35, 45, 25]
+      },
+      "detailed_characteristics": [
+        "Kid-friendly",
+        "Outdoor seating",
+        "Wheelchair accessible"
+      ]
+    },
+    "review_summary": {
+      "advantages": [
+        "理发师技术专业、态度友好",
+        "环境干净整洁",
+        "性价比高，定价合理"
+      ],
+      "disadvantages": [
+        "高峰期等待时间较长",
+        "个别技师服务态度有待改善"
+      ],
+      "star_reasons": {
+        "five_star": ["性价比高", "理发效果满意"],
+        "one_star": ["个别技师服务态度差"]
+      }
+    },
+    "rating_distribution": {
+      "1": 3,
+      "2": 5,
+      "3": 10,
+      "4": 40,
+      "5": 65
+    },
+    "questions_and_answers": [
+      {
+        "question": "Do you have Wi‑Fi?",
+        "answer": "Yes, free Wi‑Fi is available for customers."
+      }
+    ],
+    "customer_updates": [
+      {
+        "text": "Now open on Sundays from 10:00–16:00",
+        "language": "en"
+      }
+    ],
+    "recommendation_reasons": [
+      "价格符合您的预算",
+      "当前营业中，预计 15 分钟可到达"
+    ]
+  }
 }
 ```
 
@@ -639,7 +736,7 @@
       "agent_name": "crawling_agent_transit",
       "status": "success",
       "duration_ms": 1500,
-      "input_summary": "SBB API: 12 个目的地",
+      "input_summary": "Swiss Transit API: 12 个目的地",
       "output_summary": "已计算 12 条公共交通路线（tram/bus/train）"
     },
     {

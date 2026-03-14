@@ -45,31 +45,30 @@ export function useQueueStatus() {
   const [userQueue, setUserQueue] = useState<UserQueuePosition | null>(null);
   const intervalRef = useRef<number | null>(null);
 
-  // Simulate real-time queue fluctuation every 8s
-  useEffect(() => {
-    intervalRef.current = window.setInterval(() => {
-      setQueues((prev) => {
-        const next = { ...prev };
-        // Randomly adjust 2-3 places
-        const ids = Object.keys(next);
-        const count = 2 + Math.floor(Math.random() * 2);
-        for (let i = 0; i < count; i++) {
-          const id = ids[Math.floor(Math.random() * ids.length)];
-          const q = { ...next[id] };
-          const delta = Math.random() > 0.5 ? 1 : -1;
-          q.peopleAhead = Math.max(0, q.peopleAhead + delta);
-          q.waitMinutes = Math.max(0, q.peopleAhead * 3);
-          q.level = q.peopleAhead <= 2 ? "low" : q.peopleAhead <= 6 ? "medium" : "busy";
-          next[id] = q;
-        }
-        return next;
-      });
-    }, 8000);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
+  // Simulate real-time queue fluctuation - DISABLED for prototyping
+  // Uncomment to enable live queue simulation
+  // useEffect(() => {
+  //   intervalRef.current = window.setInterval(() => {
+  //     setQueues((prev) => {
+  //       const next = { ...prev };
+  //       const ids = Object.keys(next);
+  //       const count = 2 + Math.floor(Math.random() * 2);
+  //       for (let i = 0; i < count; i++) {
+  //         const id = ids[Math.floor(Math.random() * ids.length)];
+  //         const q = { ...next[id] };
+  //         const delta = Math.random() > 0.5 ? 1 : -1;
+  //         q.peopleAhead = Math.max(0, q.peopleAhead + delta);
+  //         q.waitMinutes = Math.max(0, q.peopleAhead * 3);
+  //         q.level = q.peopleAhead <= 2 ? "low" : q.peopleAhead <= 6 ? "medium" : "busy";
+  //         next[id] = q;
+  //       }
+  //       return next;
+  //     });
+  //   }, 8000);
+  //   return () => {
+  //     if (intervalRef.current) clearInterval(intervalRef.current);
+  //   };
+  // }, []);
 
   // Simulate user queue position countdown
   useEffect(() => {

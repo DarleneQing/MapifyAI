@@ -1,31 +1,121 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { LatLng } from "@/types";
 import { putDeviceLocation } from "@/services/api";
 
 const DEVICE_ID_KEY = "localbid_device_id";
-const MIN_DISTANCE_M = 100; // only sync if moved > 100m
+
+// Default location: Zurich, Switzerland
+const DEFAULT_LOCATION: LatLng = { lat: 47.3769, lng: 8.5417 };
+
+// Module-level singleton cache - shared across all hook instances
+let cachedLocation: LatLng | null = null;
+let locationPromise: Promise<LatLng> | null = null;
+let deviceId: string | null = null;
 
 function getOrCreateDeviceId(): string {
+  if (deviceId) return deviceId;
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
     id = crypto.randomUUID();
     localStorage.setItem(DEVICE_ID_KEY, id);
   }
+  deviceId = id;
   return id;
 }
 
-function haversineMeters(a: LatLng, b: LatLng): number {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h =
-    sinLat * sinLat +
-    Math.cos((a.lat * Math.PI) / 180) *
-      Math.cos((b.lat * Math.PI) / 180) *
-      sinLng * sinLng;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+function isSecureContext(): boolean {
+  return window.isSecureContext || window.location.hostname === "localhost";
+}
+
+async function getLocationFromIP(): Promise<LatLng | null> {
+  try {
+    const res = await fetch("http://ip-api.com/json/?fields=status,lat,lon,city,country");
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status === "success" && typeof data.lat === "number" && typeof data.lon === "number") {
+      console.info(`[Geolocation] IP-based location: ${data.city}, ${data.country}`);
+      return { lat: data.lat, lng: data.lon };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function getBrowserLocation(): Promise<LatLng> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation || !isSecureContext()) {
+      resolve(DEFAULT_LOCATION);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        console.info("[Geolocation] Browser location acquired");
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        resolve(DEFAULT_LOCATION);
+      },
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+    );
+  });
+}
+
+async function fetchLocationOnce(): Promise<LatLng> {
+  // Return cached location if available
+  if (cachedLocation) {
+    return cachedLocation;
+  }
+
+  // Return existing promise if fetch is in progress
+  if (locationPromise) {
+    return locationPromise;
+  }
+
+  // Start new fetch
+  locationPromise = (async () => {
+    console.info("[Geolocation] Fetching location (one-time)...");
+
+    // Try browser geolocation first if in secure context
+    if (navigator.geolocation && isSecureContext()) {
+      const browserLoc = await getBrowserLocation();
+      if (browserLoc.lat !== DEFAULT_LOCATION.lat || browserLoc.lng !== DEFAULT_LOCATION.lng) {
+        cachedLocation = browserLoc;
+        syncLocationToBackend(browserLoc);
+        return browserLoc;
+      }
+    }
+
+    // Fall back to IP geolocation
+    console.info("[Geolocation] Trying IP-based geolocation...");
+    const ipLoc = await getLocationFromIP();
+    if (ipLoc) {
+      cachedLocation = ipLoc;
+      syncLocationToBackend(ipLoc);
+      return ipLoc;
+    }
+
+    // Final fallback to Zurich
+    console.info("[Geolocation] Using default location (Zurich)");
+    cachedLocation = DEFAULT_LOCATION;
+    syncLocationToBackend(DEFAULT_LOCATION);
+    return DEFAULT_LOCATION;
+  })();
+
+  return locationPromise;
+}
+
+function syncLocationToBackend(loc: LatLng) {
+  const id = getOrCreateDeviceId();
+  putDeviceLocation(id, {
+    lat: loc.lat,
+    lng: loc.lng,
+    accuracy_m: null,
+    timestamp: new Date().toISOString(),
+  }).catch(() => {
+    // silent fail – backend may not be up
+  });
 }
 
 interface DeviceLocationState {
@@ -36,72 +126,42 @@ interface DeviceLocationState {
 }
 
 export function useDeviceLocation(): DeviceLocationState {
-  const deviceId = useRef(getOrCreateDeviceId()).current;
-  const lastSynced = useRef<LatLng | null>(null);
+  const id = getOrCreateDeviceId();
 
-  const [state, setState] = useState<DeviceLocationState>({
-    location: null,
+  const [state, setState] = useState<DeviceLocationState>(() => ({
+    location: cachedLocation,
     error: null,
-    loading: true,
-    deviceId,
-  });
-
-  const syncToBackend = useCallback(
-    (lat: number, lng: number, accuracy?: number) => {
-      const current: LatLng = { lat, lng };
-      if (
-        lastSynced.current &&
-        haversineMeters(lastSynced.current, current) < MIN_DISTANCE_M
-      ) {
-        return;
-      }
-      lastSynced.current = current;
-      putDeviceLocation(deviceId, {
-        lat,
-        lng,
-        accuracy_m: accuracy ?? null,
-        timestamp: new Date().toISOString(),
-      }).catch(() => {
-        // silent fail – backend may not be up
-      });
-    },
-    [deviceId]
-  );
+    loading: !cachedLocation,
+    deviceId: id,
+  }));
 
   useEffect(() => {
-    if (!navigator.geolocation) {
+    // If already cached, no need to fetch
+    if (cachedLocation) {
       setState((s) => ({
         ...s,
-        error: "Geolocation not supported",
+        location: cachedLocation,
         loading: false,
       }));
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const loc: LatLng = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        };
-        setState((s) => ({ ...s, location: loc, error: null, loading: false }));
-        syncToBackend(loc.lat, loc.lng, pos.coords.accuracy ?? undefined);
-      },
-      (err) => {
-        // default Shanghai
-        const fallback: LatLng = { lat: 31.2304, lng: 121.4737 };
+    let mounted = true;
+
+    fetchLocationOnce().then((loc) => {
+      if (mounted) {
         setState((s) => ({
           ...s,
-          location: fallback,
-          error: err.message,
+          location: loc,
           loading: false,
         }));
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
-    );
+      }
+    });
 
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [syncToBackend]);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return state;
 }

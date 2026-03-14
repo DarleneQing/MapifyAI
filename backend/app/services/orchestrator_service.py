@@ -23,6 +23,7 @@ class OrchestratorService:
         self._marketplace = marketplace
         self._trace_service = trace_service
         self._pipeline_runner = pipeline_runner
+        self.place_service: Any = None  # Injected by main.py at startup
 
     def run_recommendation_pipeline(self, request_id: str) -> dict:
         if self._marketplace is None or not hasattr(self._marketplace, "get_request"):
@@ -38,6 +39,11 @@ class OrchestratorService:
             request["location"],
             preferences,
         )
+
+        # Cache candidate providers in place_service for /api/places lookups
+        candidate_providers = state.get("candidate_providers") or []
+        if self.place_service is not None and candidate_providers:
+            self.place_service.cache_places(candidate_providers)
 
         structured_request = state.get("structured_request") or request
         if isinstance(structured_request, dict):

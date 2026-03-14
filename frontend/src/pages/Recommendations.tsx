@@ -1,31 +1,76 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, MoreHorizontal, Search } from "lucide-react";
 import PlaceCard from "@/components/PlaceCard";
 import AgentPipeline from "@/components/AgentPipeline";
 import BottomTabBar from "@/components/BottomTabBar";
 import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/VibeFilter";
-import { useSearchStream } from "@/hooks/useSearchStream";
+import { useSearchStream, type PipelineStage } from "@/hooks/useSearchStream";
 import { useLang } from "@/i18n/LanguageContext";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useDeviceLocation } from "@/hooks/useDeviceLocation";
+import { useChatContext } from "@/contexts/ChatContext";
+import type { PlaceSummary } from "@/types";
 
 const FILTER_CHIPS = ["For You", "Breakfast", "Quiet Spots", "Outdoor"];
 
+interface LocationState {
+  query?: string;
+  results?: PlaceSummary[];
+}
+
 export default function Recommendations() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const [searchParams] = useSearchParams();
-  const query = searchParams.get("q") || "coffee shops nearby";
+  
+  // Get persisted data from ChatContext
+  const { lastSearchResults: contextResults, lastSearchQuery: contextQuery, setLastSearchResults } = useChatContext();
+  
+  // Get data from navigation state (passed from Chat) or URL params
+  const locationState = routerLocation.state as LocationState | null;
+  const passedResults = locationState?.results;
+  const passedQuery = locationState?.query;
+  const urlQuery = searchParams.get("q");
+  
+  // Priority: navigation state > context > URL params
+  const query = passedQuery || contextQuery || urlQuery;
+  
   const [activeFilter, setActiveFilter] = useState("For You");
   const [activePlace, setActivePlace] = useState<string | null>(null);
   const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const { preferences } = usePreferences();
-  const { results, isLoading, isStreaming, pipelineStage, startSearch } = useSearchStream(preferences);
+  const { results: apiResults, isLoading, isStreaming, pipelineStage: apiPipelineStage, startSearch } = useSearchStream(preferences);
   const { t } = useLang();
+  const { location } = useDeviceLocation();
+  const searchedQueryRef = useRef<string | null>(null);
 
+  // Priority for results: navigation state > context > API results
+  const availableResults = passedResults && passedResults.length > 0 
+    ? passedResults 
+    : contextResults && contextResults.length > 0 
+      ? contextResults 
+      : apiResults;
+  
+  const results = availableResults;
+  const hasPersistedResults = (passedResults && passedResults.length > 0) || (contextResults && contextResults.length > 0);
+  const pipelineStage: PipelineStage = hasPersistedResults ? "completed" : apiPipelineStage;
+
+  // Store results in context when they come from navigation state (for persistence across tabs)
   useEffect(() => {
-    startSearch(query, { lat: 31.2304, lng: 121.4737 });
-  }, [query, startSearch]);
+    if (passedResults && passedResults.length > 0 && contextResults.length === 0) {
+      setLastSearchResults(passedResults);
+    }
+  }, [passedResults, contextResults.length, setLastSearchResults]);
+
+  // Only call API if no results available from any source
+  useEffect(() => {
+    if (!hasPersistedResults && query && location && searchedQueryRef.current !== query) {
+      searchedQueryRef.current = query;
+      startSearch(query, location);
+    }
+  }, [hasPersistedResults, query, location, startSearch]);
 
   const handleVibeToggle = (vibe: VibeTag) => {
     setActiveVibes((prev) => prev.includes(vibe) ? prev.filter((v) => v !== vibe) : [...prev, vibe]);
@@ -61,8 +106,8 @@ export default function Recommendations() {
       <div className="flex-shrink-0 px-4 pb-3">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
           <Search className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            Looking for {query}...
+          <span className="text-sm text-muted-foreground truncate">
+            {query ? `"${query}"` : "No search query provided"}
           </span>
         </div>
       </div>
@@ -159,6 +204,21 @@ export default function Recommendations() {
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <p className="text-sm font-medium">No matches for selected vibes</p>
             <p className="text-xs mt-1">Try removing some vibe filters</p>
+          </div>
+        )}
+
+        {!query && !hasPersistedResults && (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Search className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">No search query</p>
+            <p className="text-xs mt-1">Start a search from the home page to see recommendations</p>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/")}
+              className="mt-4 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold"
+            >
+              Go to Home
+            </motion.button>
           </div>
         )}
 

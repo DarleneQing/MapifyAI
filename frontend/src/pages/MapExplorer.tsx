@@ -43,7 +43,7 @@ function createUserLocationIcon() {
 export default function MapExplorer() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const query = searchParams.get("q") || "";
+  const query = searchParams.get("q");
   const { location } = useDeviceLocation();
   const { results, startSearch } = useSearchStream();
   const [activePlace, setActivePlace] = useState<string | null>(null);
@@ -52,15 +52,17 @@ export default function MapExplorer() {
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const searchedQueryRef = useRef<string | null>(null);
 
   const lat = location?.lat ?? 47.3769;
   const lng = location?.lng ?? 8.5417;
 
   useEffect(() => {
-    if (query) {
+    if (query && location && searchedQueryRef.current !== query) {
+      searchedQueryRef.current = query;
       startSearch(query, { lat, lng });
     }
-  }, [query, lat, lng, startSearch]);
+  }, [query, location, lat, lng, startSearch]);
 
   const activeResult = results.find((r) => r.place_id === activePlace);
 
@@ -165,7 +167,7 @@ export default function MapExplorer() {
           <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-full bg-card/90 backdrop-blur-sm shadow-sm border border-border/30">
             <Search className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm text-muted-foreground flex-1 truncate">
-              {query || "Search destinations..."}
+              {query ? query : "Search destinations..."}
             </span>
             <Mic className="w-4 h-4 text-muted-foreground" />
           </div>

@@ -66,7 +66,7 @@
     - 按 Agent 执行阶段依次推送 7 个事件：
       1. `intent_parsed` — Input Agent 完成意图解析
       2. `stores_crawled` — Crawling Agent Sub-1（Apify Google Maps scraper）完成店铺搜索
-      3. `transit_computed` — Crawling Agent Sub-2（SBB API）完成交通 ETA 计算
+      3. `transit_computed` — Crawling Agent Sub-2（Swiss Transit API）完成交通 ETA 计算
       4. `reviews_fetched` — Review Agent（Apify 评论抓取 + LLM 摘要）完成
       5. `scores_computed` — Evaluation Agent 完成评分计算
       6. `recommendations_ready` — Orchestrator Agent 完成聚合与推荐优化
@@ -134,20 +134,82 @@
 
 **Controller 函数**
 
-- 函数名建议：`get_place_detail`
+- 已实现：`backend/app/api/places.py#get_place_detail`
 - 职责：
   - 接收 `place_id`、`request_id`
-  - 调用 service 拉取聚合详情（基础信息 + 评论摘要 + 打分分布 + 推荐理由）
-  - 将 `request_id` 一并返回给前端
+  - 调用 `place_service.get_place_detail()` 获取原始数据
+  - **转换为 `PlaceDetailResponse` 契约结构**：Controller 负责将 Service 返回的扁平化数据转换为前端期望的嵌套结构
+  - 返回 `{ request_id, detail: { place, review_summary, rating_distribution, ... } }`
+
+**响应结构转换**
+
+Controller 从 `place_service` 获取的原始数据结构：
+
+```python
+{
+    "id": "...",
+    "name": "...",
+    "address": "...",
+    "location": {...},
+    "rating": 4.6,
+    "review_count": 123,
+    "price_range": "$$",
+    "opening_hours": {"mon": "09:00-18:00", ...},
+    "website_url": "...",
+    "social_profiles": {...},
+    "popular_times": {...},
+    "review_summary": {...},
+    "review_distribution": {...},
+    "one_sentence_recommendation": "..."
+}
+```
+
+Controller 转换为前端契约 `PlaceDetailResponse`：
+
+```python
+{
+    "request_id": request_id,
+    "detail": {
+        "place": {
+            "place_id": raw["id"],
+            "name": raw["name"],
+            "address": raw["address"],
+            "phone": None,
+            "website": raw["website_url"],
+            "location": raw["location"],
+            "rating": raw["rating"],
+            "rating_count": raw["review_count"],
+            "price_level": _price_range_to_level(raw["price_range"]),
+            "status": _compute_status(raw["opening_hours"]),
+            "opening_hours": _format_opening_hours(raw["opening_hours"]),
+            "social_profiles": raw["social_profiles"],
+            "popular_times": raw["popular_times"],
+            "detailed_characteristics": None,
+        },
+        "review_summary": raw["review_summary"],
+        "rating_distribution": raw["review_distribution"],
+        "questions_and_answers": None,
+        "customer_updates": None,
+        "recommendation_reasons": [raw["one_sentence_recommendation"]] if raw.get("one_sentence_recommendation") else [],
+    }
+}
+```
+
+**辅助函数（Controller 层）**
+
+- `_price_range_to_level(price_range: str) -> str` — 将 `"$$"` 等价格字符串转换为 `"low" | "medium" | "high"`
+- `_compute_status(opening_hours: dict) -> str` — 根据当前时间和营业时间计算 `"open_now" | "closing_soon" | "closed"`
+- `_format_opening_hours(opening_hours: dict) -> dict` — 格式化为 `{ today_open, today_close, is_open_now }`
 
 **需要调用的 Service 函数**
 
-- `place_service.get_place_detail(place_id: str, request_id: str | None) -> PlaceDetail`
+- `place_service.get_place_detail(place_id: str, request_id: str | None) -> dict`
   - 内部由 Service 负责：
-    - 调用 **Apify Google Maps scraper** 获取店铺详情与营业时间
-    - 评论聚合：使用 **Apify Google Maps review scraper** 抓取评论，LLM 生成 `advantages` / `disadvantages` 摘要（PRD 4.1.3）
-    - 营业状态过滤与可达性：基于 **SBB API** 的公共交通 ETA（duration、transport_type、departure_time）（PRD 4.1.4）
-    - 生成 `recommendation_reasons`（PRD 4.3.4）
+    - 优先从内存缓存读取（推荐流程后自动填充）
+    - 缓存未命中时回退到 **Apify Google Maps scraper** 获取店铺详情
+    - 评论聚合：从缓存的 reviews 列表生成 `advantages` / `disadvantages` 摘要
+    - Transit 计算（如有用户位置）：基于 **Swiss Transit API（transport.opendata.ch）**
+    - 生成 `one_sentence_recommendation`
 - （可选）`request_service.append_place_view_log(request_id, place_id)`
 
 ---
@@ -462,19 +524,26 @@
   - `close_request(request_id: str) -> None`
 - `orchestrator_service` / `agents.graph`（6-Agent DAG 编排）
   - `run_recommendation_pipeline(payload: CreateRequestPayload) -> RankedOffersResponse`
-    - 内部调度：Input Agent → Crawling Agent（Sub-1 Apify + Sub-2 SBB）→ Evaluation Agent / Review Agent → Orchestrator Agent → Output Agent
+    - 内部调度：Input Agent → Crawling Agent（Sub-1 Apify + Sub-2 Swiss Transit）→ Evaluation Agent / Review Agent → Orchestrator Agent → Output Agent
   - （未来）`start_recommendation_stream(...)`
   - （未来）`attach_to_request_stream(...)`
 - `crawling_service`（Crawling Agent 的外部 API 封装）
   - `search_stores_apify(query: str, location: LatLng, radius_km: float) -> list[dict]` — 调用 Apify Google Maps scraper，返回店铺列表（含营业时间），过滤不匹配时间窗口的店铺
-  - `compute_transit_sbb(origin: LatLng, destinations: list[LatLng]) -> list[TransitInfo]` — 调用 SBB API，返回每个目的地的公共交通 ETA（duration_minutes、transport_types、departure_time、connections）
+  - `compute_transit(origin: LatLng, destinations: list[LatLng]) -> list[TransitInfo]` — 调用 Swiss Transit API（transport.opendata.ch），返回每个目的地的公共交通 ETA（duration_minutes、transport_types、departure_time、connections）
 - `ranking` / `evaluation_service`（Evaluation Agent）
   - `normalise(...)`
   - `score_offer(...)`
   - `rank_offers(providers: list[dict], prefs: UserPreferences | None = None) -> list[dict]`
-- `place_service`（未实现，设计阶段）
-  - `get_place_detail(...) -> PlaceDetail`
-  - `list_reviews(...) -> PagedReviews`
+- `place_service`
+  - `get_place_detail(place_id: str, request_id: str | None) -> dict`
+    - 返回原始扁平化数据，由 Controller 层转换为 `PlaceDetailResponse` 契约结构
+  - `list_reviews(place_id: str, page: int, page_size: int, sort: str) -> PagedReviews`
+  - `cache_places(providers: list[dict]) -> None`
+  - **当前 MVP 实现**：`PlaceService`（`backend/app/services/place_service.py`）
+    - 混合方式：优先从内存缓存读取（推荐流程后自动填充），缓存未命中时回退到 Apify 抓取
+    - Transit 通过 `transport.opendata.ch` 计算公共交通 ETA
+    - 评论摘要从缓存的 reviews 列表生成
+    - **注意**：Service 返回扁平化 dict，Controller 负责转换为前端契约结构
 - `reviews_service`（Review Agent — Apify 评论抓取 + LLM 摘要）
   - `fetch_reviews_apify(place_ids: list[str]) -> dict[str, list[dict]]` — 批量抓取所有候选店铺的评论
   - `summarise_reviews(provider_id: str, reviews: list[dict]) -> dict` — LLM 生成 advantages / disadvantages 摘要
@@ -482,6 +551,9 @@
 - `profile_service`
   - `get_or_create_user_preferences(user_id: str) -> UserPreferences`
   - `update_user_preferences(user_id: str, prefs: UserPreferences) -> UserPreferences`
+  - **当前 MVP 实现**：`InMemoryProfileService`（`backend/app/services/profile_service.py`）
+    - 使用进程内存存储用户偏好，应用重启后丢失
+    - 生产环境可替换为 Supabase 持久化存储
 - `offer_service`
   - `submit_offer(payload: SubmitOfferPayload) -> Offer`
   - `attach_offer_stream(request_id: str, emitter: SseEmitter)`（可选，SSE）
@@ -499,6 +571,9 @@
 - `auth_service`（横切关注）
   - `get_current_user_id() -> str | None`
   - `get_current_provider_id() -> str | None`
+  - **当前 MVP 实现**：`AnonymousAuthService`（`backend/app/services/auth_service.py`）
+    - 返回固定的 `"anonymous"` 用户 ID，不执行实际认证
+    - 生产环境可替换为 Supabase Auth 或其他认证服务
 - `sse_service`（若你们想让 SSE 封装在 Service 侧）
   - `build_response(generator) -> StreamingResponse` 等
 
