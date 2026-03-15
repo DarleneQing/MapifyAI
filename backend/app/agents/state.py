@@ -1,5 +1,5 @@
 from typing import Any
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 from app.models.schemas import StructuredRequest, Provider, Offer, AgentTrace, UserPreferences
 
 
@@ -8,6 +8,7 @@ class PlannerState(TypedDict):
     raw_input: str
     location: dict           # {"lat": float, "lng": float}
     preferences: dict        # UserPreferences as dict
+    review_mode: NotRequired[str | None]
 
     # Populated by Intent Parser Agent
     structured_request: dict | None

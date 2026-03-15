@@ -35,11 +35,20 @@ Open `http://localhost:8000/docs` to explore all endpoints via Swagger UI.
 
 ```
 OPENAI_API_KEY=sk-...                   # required — LLM calls
+ORCHESTRATOR_MODEL=Qwen/QwQ-32B         # optional — orchestrator-only model override (trial default)
+ORCHESTRATOR_API_KEY=fl-...             # optional — orchestrator-only key override
+ORCHESTRATOR_BASE_URL=https://api.featherless.ai/v1  # optional — orchestrator-only OpenAI-compatible endpoint
 APIFY_API_TOKEN=apify_api_...           # optional — real Google Maps scraping (falls back to seed data)
 SUPABASE_URL=https://xxxx.supabase.co   # optional — persistent storage (falls back to in-memory)
 SUPABASE_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
+
+Orchestrator override notes:
+
+- These three ORCHESTRATOR_* settings affect only `orchestrator_agent` in the graph.
+- If ORCHESTRATOR_* values are unset, orchestrator falls back to existing `OPENAI_API_KEY` + `DEFAULT_MODEL` behavior.
+- Recommended first trial: use Featherless + `Qwen/QwQ-32B` for `orchestrator_agent` while keeping intent parser and review summarizers unchanged.
 
 ---
 

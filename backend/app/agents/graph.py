@@ -33,7 +33,15 @@ from langgraph.graph import StateGraph, END
 from app.agents import intent_parser
 from app.agents.state import PlannerState
 from app.agents.trace import add_step, make_trace
-from app.config import APIFY_API_TOKEN, OPENAI_API_KEY, DEFAULT_MODEL
+from app.config import (
+    APIFY_API_TOKEN,
+    OPENAI_API_KEY,
+    DEFAULT_MODEL,
+    REVIEW_MODE,
+    ORCHESTRATOR_MODEL,
+    ORCHESTRATOR_API_KEY,
+    ORCHESTRATOR_BASE_URL,
+)
 from app.models.schemas import UserPreferences, LatLng
 
 
@@ -90,9 +98,11 @@ def _evaluation_node(state: PlannerState) -> dict:
 
 def _review_node(state: PlannerState) -> dict:
     # Returns only the key this node owns — required for parallel execution.
-    from app.services.reviews import summarise_providers
+    from app.services.review_router import route_review_summaries
+
     providers = state["candidate_providers"]
-    summaries = summarise_providers(providers)
+    review_mode = state.get("review_mode") or REVIEW_MODE or "simple"
+    summaries = route_review_summaries(providers, review_mode=review_mode)
     return {"review_summaries": summaries}
 
 
@@ -112,7 +122,12 @@ def _orchestrator_node(state: PlannerState) -> PlannerState:
     start = time.time() * 1000
     from openai import OpenAI
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    resolved_api_key = ORCHESTRATOR_API_KEY or OPENAI_API_KEY
+    resolved_model = ORCHESTRATOR_MODEL or DEFAULT_MODEL
+    if ORCHESTRATOR_BASE_URL:
+        client = OpenAI(api_key=resolved_api_key, base_url=ORCHESTRATOR_BASE_URL)
+    else:
+        client = OpenAI(api_key=resolved_api_key)
     ranked = state["ranked_offers"]
     review_map = {r["place_id"]: r for r in state.get("review_summaries", [])}
     req = state["structured_request"] or {}
@@ -163,7 +178,7 @@ Return a JSON object:
 
     try:
         response = client.chat.completions.create(
-            model=DEFAULT_MODEL,
+            model=resolved_model,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": "You return only valid JSON."},
@@ -328,6 +343,7 @@ def _build_initial_state(
     raw_input: str,
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
+    review_mode: str | None = None,
 ) -> PlannerState:
     """Build the initial LangGraph state dict."""
     if isinstance(location, LatLng):
@@ -351,6 +367,7 @@ def _build_initial_state(
         "raw_input": raw_input,
         "location": location_dict,
         "preferences": prefs_dict,
+        "review_mode": review_mode,
         "structured_request": None,
         "candidate_providers": [],
         "ranked_offers": [],
@@ -365,9 +382,15 @@ def run_pipeline(
     raw_input: str,
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
+    review_mode: str | None = None,
 ) -> PlannerState:
     """Entry point called by the API layer. Returns the final PlannerState."""
-    initial_state = _build_initial_state(raw_input, location, preferences)
+    initial_state = _build_initial_state(
+        raw_input,
+        location,
+        preferences,
+        review_mode,
+    )
     return pipeline.invoke(initial_state)
 
 
@@ -387,6 +410,7 @@ def stream_pipeline(
     raw_input: str,
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
+    review_mode: str | None = None,
 ):
     """
     Generator that uses LangGraph's .stream() to yield progress events as each
@@ -397,7 +421,12 @@ def stream_pipeline(
       ...
       {"type": "result", "state": <final PlannerState>}
     """
-    initial_state = _build_initial_state(raw_input, location, preferences)
+    initial_state = _build_initial_state(
+        raw_input,
+        location,
+        preferences,
+        review_mode,
+    )
     final_state: PlannerState | None = None
 
     for chunk in pipeline.stream(initial_state):
