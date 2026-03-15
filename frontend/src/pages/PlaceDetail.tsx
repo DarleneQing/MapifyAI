@@ -7,15 +7,15 @@ import {
   Globe, ExternalLink, Navigation, ChevronDown, ChevronUp,
   Facebook, Instagram, Train, Bus, Footprints,
 } from "lucide-react";
-import BidDrawer from "@/components/BidDrawer";
-import ChatDrawer from "@/components/ChatDrawer";
-import FlashDealBanner from "@/components/FlashDealBanner";
-import QueueIndicator from "@/components/QueueIndicator";
-import QueueDrawer from "@/components/QueueDrawer";
+import BidDrawer from "@/components/place/BidDrawer";
+import ChatDrawer from "@/components/chat/ChatDrawer";
+import FlashDealBanner from "@/components/place/FlashDealBanner";
+import QueueIndicator from "@/components/place/QueueIndicator";
+import QueueDrawer from "@/components/place/QueueDrawer";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
-import RatingDistributionChart from "@/components/RatingDistributionChart";
-import ReviewsList from "@/components/ReviewsList";
-import PopularTimesChart from "@/components/PopularTimesChart";
+import RatingDistributionChart from "@/components/place/RatingDistributionChart";
+import ReviewsList from "@/components/place/ReviewsList";
+import PopularTimesChart from "@/components/place/PopularTimesChart";
 import type { PlaceDetail as PlaceDetailType, FlashDeal, PlaceDetailResponse } from "@/types";
 import { getPlaceDetail } from "@/services/api";
 import { useSavedPlaces } from "@/contexts/SavedPlacesContext";

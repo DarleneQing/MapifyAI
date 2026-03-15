@@ -4,14 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, X, MapPin, Star, ArrowRight, Mic, ChevronUp, Bookmark, MessageCircle, LocateFixed, Users } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import BottomTabBar from "@/components/BottomTabBar";
+import BottomTabBar from "@/components/layout/BottomTabBar";
 import { useDeviceLocation } from "@/hooks/useDeviceLocation";
-import ChatDrawer from "@/components/ChatDrawer";
-import QueueDrawer from "@/components/QueueDrawer";
-import QueueIndicator from "@/components/QueueIndicator";
+import ChatDrawer from "@/components/chat/ChatDrawer";
+import QueueDrawer from "@/components/place/QueueDrawer";
+import QueueIndicator from "@/components/place/QueueIndicator";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
-import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/VibeFilter";
-import NotificationCenter from "@/components/NotificationCenter";
+import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
+import NotificationCenter from "@/components/layout/NotificationCenter";
 import { useNotifications } from "@/hooks/useNotifications";
 
 // ── Merchant mock data with real-ish Zurich coordinates ──

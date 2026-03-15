@@ -14,7 +14,7 @@ import { useState, useCallback, useRef } from "react";
 import type { PlaceSummary, LatLng } from "@/types";
 import { createSearchRequest } from "@/services/api";
 import { sortByPreferences } from "@/lib/preferenceScoring";
-import type { UserPreferences } from "@/components/OnboardingSurvey";
+import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
 
 /** Backend POST stream event (progress / result / error) */
 type StreamEvent =

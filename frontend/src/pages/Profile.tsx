@@ -6,10 +6,10 @@ import {
   LogOut, ChevronRight, DollarSign, MapPin, ThumbsUp, Clock, LogIn,
   ClipboardList, RotateCcw, Sparkles, Users, BarChart3, Eye, ShoppingBag, TrendingUp,
 } from "lucide-react";
-import BottomTabBar from "@/components/BottomTabBar";
+import BottomTabBar from "@/components/layout/BottomTabBar";
 import { useAuth } from "@/contexts/AuthContext";
-import OnboardingSurvey from "@/components/OnboardingSurvey";
-import MerchantOnboarding, { type MerchantPreferences } from "@/components/MerchantOnboarding";
+import OnboardingSurvey from "@/components/onboarding/OnboardingSurvey";
+import MerchantOnboarding, { type MerchantPreferences } from "@/components/merchant/MerchantOnboarding";
 import { usePreferences } from "@/hooks/usePreferences";
 
 import { getProfile, updatePreferences } from "@/services/api";

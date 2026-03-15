@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { UserPreferences } from "@/components/OnboardingSurvey";
+import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
 
 const STORAGE_KEY = "user_preferences";
 const ONBOARDED_KEY = "user_onboarded";

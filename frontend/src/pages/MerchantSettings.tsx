@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import type { MerchantPreferences } from "@/components/MerchantOnboarding";
+import type { MerchantPreferences } from "@/components/merchant/MerchantOnboarding";
 
 const SERVICE_OPTIONS = [
   { id: "coffee", icon: "☕", label: "Coffee & Café" },

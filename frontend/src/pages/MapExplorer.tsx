@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, Search, Mic, Navigation, MapPin, Star, Heart, LocateFixed } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import BottomTabBar from "@/components/BottomTabBar";
+import BottomTabBar from "@/components/layout/BottomTabBar";
 import { useSearchStream } from "@/hooks/useSearchStream";
 import { useDeviceLocation } from "@/hooks/useDeviceLocation";
 

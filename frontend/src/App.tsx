@@ -7,7 +7,7 @@ import { LanguageProvider } from "@/i18n/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SavedPlacesProvider } from "@/contexts/SavedPlacesContext";
 import { ChatProvider } from "@/contexts/ChatContext";
-import AIChatOverlay from "@/components/AIChatOverlay";
+import AIChatOverlay from "@/components/chat/AIChatOverlay";
 import Index from "./pages/Index";
 import Explore from "./pages/Explore";
 import Chat from "./pages/Chat";
@@ -21,7 +21,7 @@ import MerchantDashboard from "./pages/MerchantDashboard";
 import MerchantSettings from "./pages/MerchantSettings";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
-import DebugTraceWrapper from "@/components/DebugTraceWrapper";
+import DebugTraceWrapper from "@/components/debug/DebugTraceWrapper";
 
 const queryClient = new QueryClient();
 

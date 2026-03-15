@@ -53,47 +53,50 @@ frontend/
 ├── src/
 │   ├── components/              # UI Components
 │   │   ├── ui/                  # shadcn/ui primitives (40+ components)
-│   │   ├── BottomTabBar.tsx     # Fixed mobile navigation
-│   │   ├── PlaceCard.tsx        # Place list item
-│   │   ├── MapBackground.tsx    # Leaflet map wrapper
-│   │   ├── AgentPipeline.tsx    # AI pipeline visualization
-│   │   ├── OnboardingSurvey.tsx # Taste profile wizard
-│   │   ├── ChatDrawer.tsx       # AI chat bottom sheet
-│   │   └── ...
+│   │   ├── place/               # Place cards, detail, reviews, bid/queue
+│   │   │   ├── PlaceCard.tsx, RatingDistributionChart.tsx, ReviewsList.tsx, ...
+│   │   │   └── README.md
+│   │   ├── chat/                # AI chat, pipeline, FAB
+│   │   │   ├── ChatDrawer.tsx, AgentPipeline.tsx, AIChatOverlay.tsx
+│   │   │   └── README.md
+│   │   ├── explore/             # Map, pins, search, vibe filters
+│   │   │   ├── MapBackground.tsx, MapPins.tsx, SearchBar.tsx, VibeFilter.tsx
+│   │   │   └── README.md
+│   │   ├── layout/              # Tab bar, sidebar, notification center
+│   │   │   ├── BottomTabBar.tsx, AppSidebar.tsx, NavLink.tsx, ...
+│   │   │   └── README.md
+│   │   ├── onboarding/         # Taste profile wizard
+│   │   │   ├── OnboardingSurvey.tsx
+│   │   │   └── README.md
+│   │   ├── merchant/           # Merchant onboarding
+│   │   │   ├── MerchantOnboarding.tsx
+│   │   │   └── README.md
+│   │   └── debug/              # Debug trace panel
+│   │       ├── DebugTracePanel.tsx, DebugTraceWrapper.tsx
+│   │       └── README.md
 │   ├── contexts/                # React Context providers
-│   │   ├── AuthContext.tsx      # Mock authentication
-│   │   ├── ChatContext.tsx      # Chat messages & search results persistence
+│   │   ├── AuthContext.tsx
+│   │   ├── ChatContext.tsx
 │   │   └── SavedPlacesContext.tsx
 │   ├── hooks/                   # Custom React hooks
-│   │   ├── useSearchStream.ts   # SSE streaming search
-│   │   ├── useDeviceLocation.ts # Geolocation
-│   │   ├── usePreferences.ts    # localStorage preferences
-│   │   └── ...
-│   ├── i18n/                    # Internationalization
-│   │   ├── LanguageContext.tsx  # Language provider
-│   │   ├── en.ts                # English translations
-│   │   └── zh.ts                # Chinese translations
-│   ├── lib/                     # Utility functions
-│   │   ├── utils.ts             # cn() class merging
-│   │   └── preferenceScoring.ts # Preference-based sorting
+│   │   ├── useSearchStream.ts, useDeviceLocation.ts, usePreferences.ts, ...
+│   ├── i18n/
+│   │   ├── LanguageContext.tsx, en.ts, zh.ts
+│   ├── lib/
+│   │   ├── utils.ts, preferenceScoring.ts
 │   ├── pages/                   # Route page components
-│   │   ├── Index.tsx            # Home with map & search
-│   │   ├── Explore.tsx          # Browse all places
-│   │   ├── Chat.tsx             # AI chat interface
-│   │   ├── Recommendations.tsx  # Streaming AI results
-│   │   ├── PlaceDetail.tsx      # Place detail page
-│   │   ├── Profile.tsx          # User settings
-│   │   └── ...
-│   ├── services/                # API layer
-│   │   └── api.ts               # All API calls
-│   ├── test/                    # Test setup
-│   └── types/                   # TypeScript definitions
-│       └── index.ts             # All type interfaces
-├── index.html                   # HTML entry
-├── package.json                 # Dependencies
-├── vite.config.ts               # Vite configuration
-├── tailwind.config.ts           # Tailwind CSS config
-└── tsconfig.json                # TypeScript config
+│   │   ├── Index.tsx, Explore.tsx, Chat.tsx, Recommendations.tsx, ...
+│   ├── services/                # API layer (domain modules + barrel)
+│   │   ├── requests.ts, places.ts, providers.ts, offers.ts
+│   │   ├── profile.ts, location.ts, traces.ts, privacy.ts, health.ts
+│   │   ├── api.ts               # Re-exports all
+│   │   └── README.md
+│   ├── test/
+│   └── types/                   # TypeScript (domain files + barrel)
+│       ├── common.ts, place.ts, request.ts, profile.ts, offer.ts, ...
+│       ├── index.ts             # Re-exports all
+│       └── README.md
+├── index.html, package.json, vite.config.ts, tailwind.config.ts, tsconfig.json
 ```
 
 ---
@@ -255,32 +258,26 @@ const App = () => (
 - Accordion, Carousel, Progress
 - Form, Label, Checkbox, Radio
 
-#### 2. Layout Components
+#### 2. Layout Components (`src/components/layout/`)
 - `BottomTabBar.tsx` - Mobile bottom navigation
   - **Context-aware "Explore" tab**: If `ChatContext` has search results, navigates to `/recommendations`; otherwise to `/explore`
   - "Explore" tab shows active for both `/explore` and `/recommendations` routes
-- `MapBackground.tsx` - Full-screen map container
-- `AIChatOverlay.tsx` - Global chat FAB
+- `MapBackground.tsx` lives in **explore/** - Full-screen map container
+- `AIChatOverlay.tsx` lives in **chat/** - Global chat FAB
   - **Context-aware navigation**: When on `/recommendations`, FAB navigates to `/chat` (preserving conversation) instead of opening overlay
 
-#### 3. Data Display Components
-- `PlaceCard.tsx` - Place list item with:
-  - Transit info (Swiss Transit integration)
-  - Flash deals
-  - Queue status
-  - Recommendation tags
-- `AgentPipeline.tsx` - AI agent step visualization
-- `ReviewsList.tsx` - Review list with pagination
-- `RatingDistributionChart.tsx` - Star rating breakdown
-- `PopularTimesChart.tsx` - Hourly popularity
+#### 3. Data Display Components (`src/components/place/`)
+- `PlaceCard.tsx` - Place list item with transit info, flash deals, queue status, recommendation tags
+- `AgentPipeline.tsx` lives in **chat/** - AI agent step visualization
+- `ReviewsList.tsx`, `RatingDistributionChart.tsx`, `PopularTimesChart.tsx` - Review and rating UI
 
-#### 4. Interactive Components
-- `SearchBar.tsx` - Search with suggestions
-- `OnboardingSurvey.tsx` - Multi-step taste wizard
-- `ChatDrawer.tsx` - Bottom sheet chat
-- `BidDrawer.tsx` - Offer comparison
-- `QueueDrawer.tsx` - Queue management
-- `VibeFilter.tsx` - Vibe tag selection
+#### 4. Interactive Components (spread by feature)
+- **explore/**: `SearchBar.tsx`, `VibeFilter.tsx`
+- **onboarding/**: `OnboardingSurvey.tsx`
+- **chat/**: `ChatDrawer.tsx`
+- **place/**: `BidDrawer.tsx`, `QueueDrawer.tsx`
+
+Each feature folder has a README describing its scope and which pages use it.
 
 ### Component Pattern
 
@@ -395,9 +392,9 @@ const {
 
 ## 8. API Service Layer
 
-### File: `src/services/api.ts`
+### Files: `src/services/*.ts` + barrel `src/services/api.ts`
 
-All API calls are centralized with full alignment to backend contract.
+API is split by domain (requests, places, providers, offers, profile, location, traces, privacy, health). All functions are re-exported from `api.ts`; consumers import from `@/services/api`. Full alignment to backend contract (see doc/controller-frontend-contract.md).
 
 ### API Endpoints
 
@@ -589,7 +586,9 @@ Keys used:
 
 ## 10. TypeScript Types
 
-### File: `src/types/index.ts`
+### Files: `src/types/*.ts` + barrel `src/types/index.ts`
+
+Types are split by domain (common, place, request, profile, offer, provider, trace, privacy). All are re-exported from `index.ts`; consumers import from `@/types`. Keep in sync with controller-frontend-contract.md §10.
 
 ### Core Types
 
@@ -1109,8 +1108,8 @@ import type { PlaceSummary } from "@/types";
 |---------|------|
 | App entry | `src/App.tsx` |
 | Routes | `src/App.tsx` (Routes section) |
-| API calls | `src/services/api.ts` |
-| Types | `src/types/index.ts` |
+| API calls | `src/services/api.ts` (barrel; domain modules in services/*.ts) |
+| Types | `src/types/index.ts` (barrel; domain modules in types/*.ts) |
 | Search logic | `src/hooks/useSearchStream.ts` |
 | Auth state | `src/contexts/AuthContext.tsx` |
 | Chat persistence | `src/contexts/ChatContext.tsx` |
@@ -1118,8 +1117,8 @@ import type { PlaceSummary } from "@/types";
 | AI Chat | `src/pages/Chat.tsx` |
 | AI Results | `src/pages/Recommendations.tsx` |
 | Place detail | `src/pages/PlaceDetail.tsx` |
-| Tab navigation | `src/components/BottomTabBar.tsx` |
+| Tab navigation | `src/components/layout/BottomTabBar.tsx` |
 
 ---
 
-*Last updated: 2026-03-15 (Session: Place images from crawler, PlaceDetail hero carousel, back button no re-request)*
+*Last updated: 2026-03-15 (Frontend restructure: domain types/services, feature component folders)*
