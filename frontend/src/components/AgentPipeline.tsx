@@ -26,9 +26,11 @@ function stageIndex(stage: PipelineStage): number {
 interface Props {
   stage: PipelineStage;
   isVisible: boolean;
+  /** Per-step duration in ms (index matches STAGES). When provided, shown instead of mock. */
+  stepDurations?: (number | undefined)[];
 }
 
-export default function AgentPipeline({ stage, isVisible }: Props) {
+export default function AgentPipeline({ stage, isVisible, stepDurations }: Props) {
   const currentIdx = stageIndex(stage);
 
   if (!isVisible || stage === "idle") return null;
@@ -113,10 +115,12 @@ export default function AgentPipeline({ stage, isVisible }: Props) {
                   )}
                 </div>
 
-                {/* Duration badge (mock) */}
+                {/* Duration badge: real from stream or fallback */}
                 {(isDone || stage === "completed") && (
                   <span className="text-[10px] text-muted-foreground/60 mt-0.5 flex-shrink-0">
-                    {(0.3 + idx * 0.2).toFixed(1)}s
+                    {stepDurations?.[idx] != null
+                      ? `${(stepDurations[idx]! / 1000).toFixed(1)}s`
+                      : `${(0.3 + idx * 0.2).toFixed(1)}s`}
                   </span>
                 )}
               </motion.div>

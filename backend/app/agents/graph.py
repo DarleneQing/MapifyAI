@@ -412,51 +412,60 @@ def stream_pipeline(
     raw_input: str,
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
+    on_node_start=None,
 ):
     """
-    Generator that yields two events per agent node:
-      1. {"type": "progress", "status": "starting", ...}  — before the node runs
-      2. {"type": "progress", "status": "done",     ...}  — after the node finishes
+    Generator that yields "done" events as each agent node completes, plus a
+    final "result" event with the full PlannerState.
 
-    Final event:
+    "starting" events are dispatched **immediately** (before the node runs)
+    via the ``on_node_start`` callback, which the caller should wire to an
+    async queue so the frontend receives them in real-time.  If no callback is
+    provided, "starting" events are yielded together with "done" (batched,
+    not real-time — kept for backwards-compat / tests).
+
+    Yields:
+      {"type": "progress", "status": "done", "agent": ..., "duration_ms": ...}
       {"type": "result", "state": <final PlannerState>}
-
-    How start events work:
-      _wrap() calls _node_callback.fn(name, "starting") before each node function.
-      That callback appends to _start_buffer (a list local to this generator call).
-      LangGraph only advances to the next node after we consume the current chunk,
-      so when we enter the for-loop body for node N, _start_buffer already contains
-      the "starting" event for node N — we yield it first, then yield the "done".
     """
     initial_state = _build_initial_state(raw_input, location, preferences)
     final_state: PlannerState | None = None
 
     _start_buffer: list[dict] = []
+    _node_start_ms: dict[str, float] = {}
 
     def _on_node_start(name: str, _status: str) -> None:
-        _start_buffer.append({
+        _node_start_ms[name] = time.time() * 1000
+        event = {
             "type": "progress",
             "status": "starting",
             "agent": name,
             "message": AGENT_START_MESSAGES.get(name, f"Starting {name}..."),
-        })
+        }
+        if on_node_start is not None:
+            on_node_start(event)
+        else:
+            _start_buffer.append(event)
 
     _node_callback.fn = _on_node_start
     try:
         for chunk in pipeline.stream(initial_state):
-            # Yield buffered "starting" events first (fired inside _wrap before node ran)
-            yield from _start_buffer
-            _start_buffer.clear()
+            if _start_buffer:
+                yield from _start_buffer
+                _start_buffer.clear()
 
             node_name = next(iter(chunk))
             final_state = chunk[node_name]
+            start_ms = _node_start_ms.get(node_name)
+            duration_ms = int(time.time() * 1000 - start_ms) if start_ms is not None else None
             yield {
                 "type": "progress",
                 "status": "done",
                 "agent": node_name,
+                "duration_ms": duration_ms,
                 "message": AGENT_DONE_MESSAGES.get(node_name, f"{node_name} completed"),
             }
     finally:
-        _node_callback.fn = None  # clean up so other requests aren't affected
+        _node_callback.fn = None
 
     yield {"type": "result", "state": final_state}

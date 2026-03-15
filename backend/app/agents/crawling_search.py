@@ -222,6 +222,24 @@ def transform_apify_result(
     location = LatLng(lat=store_lat, lng=store_lng)
     opening_hours = parse_apify_hours(result.get("openingHours"))
 
+    # List of up to 4 place image URLs (from imageUrls or images[].imageUrl)
+    image_urls_raw = result.get("imageUrls")
+    if isinstance(image_urls_raw, list):
+        images = [u for u in image_urls_raw if isinstance(u, str)][:4]
+    else:
+        images_obj = result.get("images")
+        if isinstance(images_obj, list):
+            images = []
+            for item in images_obj:
+                if len(images) >= 4:
+                    break
+                if isinstance(item, dict):
+                    u = item.get("imageUrl")
+                    if isinstance(u, str):
+                        images.append(u)
+        else:
+            images = []
+
     return {
         "id": result.get("placeId") or str(uuid.uuid4()),
         "name": name,
@@ -245,6 +263,7 @@ def transform_apify_result(
         "customer_updates": customer_updates,
         "detailed_characteristics": detailed_characteristics,
         "reviews": result.get("reviews") or [],
+        "images": images,
     }
 
 

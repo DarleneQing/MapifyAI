@@ -53,6 +53,7 @@ class Provider(BaseModel):
     google_maps_url: str | None = None
     distance_km: float | None = None    # computed at query time, not stored
     reviews: list[dict] | None = None   # mock reviews for summarizer
+    images: list[str] | None = None     # up to 4 place image URLs from crawler
 
 
 class Offer(BaseModel):

@@ -142,6 +142,7 @@ export interface PlaceBasic {
   social_profiles?: Record<string, string> | null;
   popular_times?: Record<string, number[]> | null;
   detailed_characteristics?: string[] | null;
+  images?: string[] | null;
 }
 
 export interface ReviewSummary {

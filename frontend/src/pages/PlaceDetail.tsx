@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  ChevronLeft, Share2, Heart, Star, MapPin, CheckCircle2,
+  ChevronLeft, ChevronRight, Share2, Heart, Star, MapPin, CheckCircle2,
   AlertCircle, Clock, Gavel, MessageSquare, Users, Phone,
   Globe, ExternalLink, Navigation, ChevronDown, ChevronUp,
   Facebook, Instagram, Train, Bus, Footprints,
@@ -212,6 +212,7 @@ export default function PlaceDetail() {
   const [showQA, setShowQA] = useState(false);
   const [detail, setDetail] = useState<PlaceDetailType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageIndex, setImageIndex] = useState(0);
   const { getQueueInfo, userQueue, joinQueue, leaveQueue } = useQueueStatus();
   const { isSaved, toggleSave } = useSavedPlaces();
 
@@ -226,6 +227,9 @@ export default function PlaceDetail() {
       setLoading(true);
       try {
         const res = await getPlaceDetail(id || "", requestId || undefined);
+        // Debug: full payload from backend for /places/{id}
+        console.log("[PlaceDetail] full backend response:", JSON.stringify(res, null, 2));
+        console.log("[PlaceDetail] detail.review_summary:", res.detail?.review_summary);
         if (!cancelled) {
           setDetail(res.detail);
           setLoading(false);
@@ -242,6 +246,10 @@ export default function PlaceDetail() {
     fetchDetail();
     return () => { cancelled = true; };
   }, [id, requestId]);
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [id]);
 
   if (loading || !detail) {
     return (
@@ -264,12 +272,37 @@ export default function PlaceDetail() {
   const openGoogleMaps = () => {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${place.location.lat},${place.location.lng}`, "_blank");
   };
+  const heroImages = (place.images ?? []).slice(0, 4);
+  const hasHeroImages = heroImages.length > 0;
+  const currentHeroImage = heroImages[imageIndex % Math.max(1, heroImages.length)];
+
+  const goPrevImage = () => {
+    setImageIndex((i) => (i - 1 + heroImages.length) % Math.max(1, heroImages.length));
+  };
+  const goNextImage = () => {
+    setImageIndex((i) => (i + 1) % Math.max(1, heroImages.length));
+  };
 
   return (
     <div className="h-[100dvh] flex flex-col bg-background overflow-y-auto">
       {/* Hero Image Area */}
-      <div className="relative h-72 flex-shrink-0">
-        <div className={`absolute inset-0 bg-gradient-to-br ${heroGradients[gradientIdx]}`} />
+      <div className="relative h-72 flex-shrink-0 overflow-hidden">
+        {hasHeroImages ? (
+          <img
+            key={imageIndex}
+            src={currentHeroImage}
+            alt={`${place.name} — image ${imageIndex + 1}`}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : null}
+        {/* Light overlay only at bottom for dots/contrast; no green when image exists */}
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            hasHeroImages
+              ? "bg-gradient-to-t from-black/50 via-transparent to-transparent"
+              : `bg-gradient-to-br ${heroGradients[gradientIdx]}`
+          }`}
+        />
         <div className="absolute top-0 left-0 right-0 z-10 safe-top">
           <div className="flex items-center justify-between px-4 py-3">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
@@ -311,9 +344,41 @@ export default function PlaceDetail() {
           </div>
         )}
 
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === 0 ? "bg-background" : "bg-background/40"}`} />
+        {/* Left/right carousel controls when multiple images */}
+        {heroImages.length > 1 && (
+          <>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={goPrevImage}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white"
+              aria-label="Previous image"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </motion.button>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.9 }}
+              onClick={goNextImage}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white"
+              aria-label="Next image"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </motion.button>
+          </>
+        )}
+
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+          {(heroImages.length > 0 ? heroImages : [0, 1, 2, 3]).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={heroImages.length > 1 ? () => setImageIndex(i) : undefined}
+              className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                i === imageIndex ? "bg-white scale-110" : "bg-white/50"
+              } ${heroImages.length > 1 ? "cursor-pointer" : ""}`}
+              aria-label={heroImages.length > 1 ? `Go to image ${i + 1}` : undefined}
+            />
           ))}
         </div>
       </div>

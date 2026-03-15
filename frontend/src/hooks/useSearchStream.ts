@@ -3,15 +3,51 @@
  *
  * 调用 POST /api/requests/?stream={bool}
  * - stream=false (默认): 返回 JSON { request, results }
- * - stream=true: SSE 渐进式结果（7 阶段 Agent 管道）
+ * - stream=true: 同一 POST 返回 text/event-stream，事件格式：
+ *   progress: { type, status: "starting"|"done", agent, message }
+ *   result:   { type, request, results }
+ *   error:    { type, message }
  *
  * 后端不可用时自动回退到 mock 数据。
  */
 import { useState, useCallback, useRef } from "react";
-import type { PlaceSummary, LatLng, RequestSseEvent } from "@/types";
-import { createSearchRequest, subscribeRequestStream } from "@/services/api";
+import type { PlaceSummary, LatLng } from "@/types";
+import { createSearchRequest } from "@/services/api";
 import { sortByPreferences } from "@/lib/preferenceScoring";
 import type { UserPreferences } from "@/components/OnboardingSurvey";
+
+/** Backend POST stream event (progress / result / error) */
+type StreamEvent =
+  | { type: "progress"; status: string; agent: string; message?: string; duration_ms?: number }
+  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[] }
+  | { type: "error"; message?: string };
+
+/** Map backend agent name to UI step index (0..5). Parallel agents map to their step. */
+function agentToStepIndex(agent: string): number {
+  const map: Record<string, number> = {
+    intent_parser: 0,
+    crawling_search: 1,
+    transit_calculator: 2,
+    review_agent: 3,
+    evaluation_agent: 4,
+    orchestrator_agent: 5,
+    output_ranking: 5,
+  };
+  return map[agent] ?? 0;
+}
+
+function agentToStage(agent: string): PipelineStage {
+  const map: Record<string, PipelineStage> = {
+    intent_parser: "intent_parsed",
+    crawling_search: "stores_crawled",
+    transit_calculator: "transit_computed",
+    review_agent: "reviews_fetched",
+    evaluation_agent: "scores_computed",
+    orchestrator_agent: "recommendations_ready",
+    output_ranking: "recommendations_ready",
+  };
+  return map[agent] ?? "intent_parsed";
+}
 
 // ── Mock 数据（后端未就绪时使用）──
 const MOCK_PLACES: PlaceSummary[] = [
@@ -158,8 +194,10 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>("idle");
+  const [stepDurations, setStepDurations] = useState<(number | undefined)[]>([]);
   const timerRef = useRef<number[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const clearTimers = () => {
     timerRef.current.forEach(clearTimeout);
@@ -169,6 +207,13 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
   const closeEventSource = () => {
     eventSourceRef.current?.close();
     eventSourceRef.current = null;
+  };
+
+  const abortStream = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
 
   const startMockStream = useCallback(() => {
@@ -207,101 +252,152 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
     });
   }, [userPreferences]);
 
-  const handleSseEvent = useCallback((event: RequestSseEvent) => {
-    setPipelineStage(event.type as PipelineStage);
+  const consumePostStream = useCallback(
+    (
+      res: Response,
+      onProgress: (event: StreamEvent) => void,
+      onError: () => void
+    ) => {
+      const reader = res.body?.getReader();
+      if (!reader) {
+        onError();
+        return;
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-    switch (event.type) {
-      case "intent_parsed":
-        setRequestId(event.request_id);
-        break;
-      case "stores_crawled":
-        // Initialize list with basic info
-        setResults(event.results);
-        setIsLoading(false);
-        break;
-      case "transit_computed":
-      case "scores_computed":
-      case "recommendations_ready":
-        // Progressive update with richer data
-        setResults(event.results);
-        break;
-      case "completed":
-        // Final results
-        setResults(
-          event.results.sort(
-            (a, b) => b.recommendation_score - a.recommendation_score
-          )
-        );
-        setIsStreaming(false);
-        closeEventSource();
-        break;
-    }
-  }, []);
+      const run = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              const dataLine = line.match(/^data:\s*(.+)$/m)?.[1];
+              if (!dataLine) continue;
+              try {
+                const event = JSON.parse(dataLine) as StreamEvent;
+                if (event.type === "error") {
+                  onError();
+                  return;
+                }
+                onProgress(event);
+                if (event.type === "result") return;
+              } catch {
+                // ignore malformed event
+              }
+            }
+          }
+        } catch (e) {
+          if ((e as Error).name !== "AbortError") {
+            console.warn("Stream read error", e);
+            onError();
+          }
+        }
+      };
+      run();
+    },
+    []
+  );
 
   const startSearch = useCallback(
     async (query: string, location: LatLng, options?: { language?: string; stream?: boolean }) => {
       clearTimers();
       closeEventSource();
+      abortStream();
       setResults([]);
+      setStepDurations([]);
       setIsLoading(true);
       setIsStreaming(true);
       setPipelineStage("idle");
 
       const useStream = options?.stream ?? false;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
       try {
         const res = await createSearchRequest(query, location, {
           stream: useStream,
           language: options?.language,
+          preferences: userPreferences ?? undefined,
+          signal: controller.signal,
         });
 
         if (!res.ok) throw new Error(`API returned ${res.status}`);
 
         if (useStream) {
-          // SSE mode: parse request_id from initial response, then open EventSource
-          const initData = await res.json();
-          const reqId = initData.request?.id || initData.request_id;
-          setRequestId(reqId);
-
-          if (reqId) {
-            eventSourceRef.current = subscribeRequestStream(
-              reqId,
-              handleSseEvent,
-              () => {
-                // SSE error → fall back to polling or mock
-                console.warn("SSE connection error, falling back to mock");
-                closeEventSource();
-                startMockStream();
+          consumePostStream(
+            res,
+            (event) => {
+              if (event.type === "progress") {
+                if (event.status === "starting") {
+                  setPipelineStage(agentToStage(event.agent));
+                } else if (event.status === "done" && event.duration_ms != null) {
+                  const idx = agentToStepIndex(event.agent);
+                  setStepDurations((prev) => {
+                    const next = [...prev];
+                    while (next.length <= idx) next.push(undefined);
+                    // Keep the larger value when parallel agents share a slot (e.g. output_ranking)
+                    const existing = next[idx];
+                    next[idx] = existing == null ? event.duration_ms! : Math.max(existing, event.duration_ms!);
+                    return next;
+                  });
+                }
+              } else if (event.type === "result") {
+                const req = event.request;
+                const list = event.results ?? [];
+                setRequestId(req?.id ?? null);
+                setResults(
+                  [...list].sort(
+                    (a, b) =>
+                      (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
+                  )
+                );
+                setIsLoading(false);
+                setIsStreaming(false);
+                setPipelineStage("completed");
+                abortControllerRef.current = null;
               }
-            );
-          }
+            },
+            () => {
+              abortControllerRef.current = null;
+              console.warn("SSE error or backend error, falling back to mock");
+              startMockStream();
+            }
+          );
         } else {
-          // JSON mode
           const data = await res.json();
-          setRequestId(data.request?.id || null);
+          setRequestId(data.request?.id ?? null);
           setResults(
-            (data.results || []).sort(
+            (data.results || data.offers || []).sort(
               (a: PlaceSummary, b: PlaceSummary) =>
-                b.recommendation_score - a.recommendation_score
+                (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
             )
           );
           setIsLoading(false);
           setIsStreaming(false);
           setPipelineStage("completed");
+          abortControllerRef.current = null;
         }
       } catch (err) {
-        // 后端不可用 → 回退到 mock
-        console.warn("Backend unavailable, using mock data:", err);
-        startMockStream();
+        abortControllerRef.current = null;
+        if ((err as Error).name !== "AbortError") {
+          console.warn("Backend unavailable, using mock data:", err);
+          startMockStream();
+        }
       }
     },
-    [startMockStream, handleSseEvent]
+    [startMockStream, consumePostStream, userPreferences]
   );
 
   const reset = useCallback(() => {
     clearTimers();
     closeEventSource();
+    abortStream();
     setResults([]);
+    setStepDurations([]);
     setIsLoading(false);
     setIsStreaming(false);
     setRequestId(null);
@@ -314,6 +410,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
     isStreaming,
     requestId,
     pipelineStage,
+    stepDurations,
     startSearch,
     reset,
   };

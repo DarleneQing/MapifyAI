@@ -123,6 +123,7 @@ export async function createSearchRequest(
     stream?: boolean;
     language?: string;
     preferences?: UserPreferences | null;
+    signal?: AbortSignal;
   }
 ): Promise<Response> {
   const stream = options?.stream ?? false;
@@ -140,6 +141,7 @@ export async function createSearchRequest(
       ...(stream ? { Accept: "text/event-stream" } : {}),
     },
     body: JSON.stringify(payload),
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
 }
 
