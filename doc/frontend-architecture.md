@@ -213,6 +213,7 @@ const App = () => (
 - Empty state shown when no results available from any source
 
 #### `PlaceDetail.tsx` - Place Page
+- **Hero image carousel**: Up to 4 place images from `detail.place.images` (from `GET /api/places/{place_id}`). When images exist: first image as hero background; left/right chevron buttons to cycle; dots for current index (clickable when multiple images). Light bottom-only gradient overlay when images exist (no full green overlay). When no images, fallback gradient background.
 - Place info header
 - Rating distribution chart
 - Popular times visualization
@@ -220,6 +221,7 @@ const App = () => (
 - Q&A section
 - Flash deals
 - Queue status
+- **Back button**: Top-left back button uses `navigate(-1)` to return to the previous screen without starting a new search (see Chat back-navigation below).
 
 #### `Chat.tsx` - AI Chat
 - Conversational interface with real backend API calls
@@ -231,6 +233,7 @@ const App = () => (
   1. React Router navigation state
   2. Persisted in `ChatContext` for tab switching
 - Chat history preserved when navigating away and returning
+- **Back from Place Detail**: When the user opens a place from Chat then taps the back button on Place Detail, they return to Chat with the same URL (`?q=...`). The Chat page does **not** start a new request: the auto-send effect treats `lastSearchQuery === urlQuery` (and existing user message with same content) as already sent, so no duplicate `processQuery` call.
 
 #### `Profile.tsx` - Settings
 - Preference weight sliders (price/distance/rating)
@@ -306,34 +309,35 @@ export function PlaceCard({ place, onClick, className }: PlaceCardProps) {
 
 ### `useSearchStream.ts` - Core Search Hook
 
-Manages the AI-powered search. Currently uses JSON mode (SSE reserved for future).
+Manages the AI-powered search. Chat page uses **stream mode** (`stream: true`); JSON mode is available for non-stream callers.
 
 ```tsx
 const {
   results,        // PlaceSummary[] - search results
   isLoading,      // boolean - initial loading state
-  isStreaming,    // boolean - mock streaming simulation active
+  isStreaming,    // boolean - stream in progress
   requestId,      // string | null - current request ID
-  pipelineStage,  // PipelineStage - current AI agent step
-  startSearch,    // (query, location, options) => Promise<void>
-  reset,          // () => void - clear state
+  pipelineStage,  // PipelineStage - current AI agent step (from progress.status "starting")
+  stepDurations,  // (number | undefined)[] - per-step duration in ms (from progress "done" duration_ms)
+  startSearch,    // (query, location, options?) => Promise<void>; options.stream defaults false
+  reset,          // () => void - clear state and abort in-flight stream
 } = useSearchStream(userPreferences);
 ```
 
-**Pipeline Stages:**
+**Pipeline Stages (mapped from backend `agent` on `status === "starting"`):**
 1. `idle` - No search active
-2. `intent_parsed` - Query understood
-3. `stores_crawled` - Places fetched
-4. `transit_computed` - Swiss Transit calculated
-5. `reviews_fetched` - Reviews aggregated
-6. `scores_computed` - Scores calculated
-7. `recommendations_ready` - Results ranked
+2. `intent_parsed` - intent_parser
+3. `stores_crawled` - crawling_search (Discovering Places)
+4. `transit_computed` - transit_calculator
+5. `reviews_fetched` - review_agent
+6. `scores_computed` - evaluation_agent
+7. `recommendations_ready` - orchestrator_agent / output_ranking
 8. `completed` - Final results
 
 **Behavior:**
-- Calls `POST /api/requests/?stream=false` (JSON mode)
-- On success: sets results and `pipelineStage` to `completed`
-- On failure: falls back to mock data with simulated pipeline stages
+- **Stream mode** (`options.stream === true`): `POST /api/requests/?stream=true` with `Accept: text/event-stream`; consumes response body via `getReader()` and parses SSE `data: <JSON>\n\n`. Updates `pipelineStage` on `progress.status === "starting"`, `stepDurations` on `progress.status === "done"` using `event.duration_ms`, and final `results` on `result` event.
+- **JSON mode** (default): `POST /api/requests/?stream=false`; parses JSON `{ request, results }`.
+- On stream/network error: falls back to mock data with simulated pipeline stages.
 
 ### `useDeviceLocation.ts` - Geolocation Hook
 
@@ -401,11 +405,13 @@ All API calls are centralized with full alignment to backend contract.
 ```typescript
 // POST /api/requests/?stream={bool}
 createSearchRequest(query, location, options) → Response
+// When stream=true: response.body is text/event-stream (SSE); frontend consumes via getReader(), not a separate GET.
+// When stream=false: response is JSON { request, results }.
 
 // GET /api/requests/{request_id}
 getRequest(requestId) → RequestWithResults
 
-// GET /api/requests/{request_id}/stream (SSE)
+// GET /api/requests/{request_id}/stream (SSE) — reserved; backend not implemented; use POST stream=true instead
 subscribeRequestStream(requestId, onEvent, onError) → EventSource
 ```
 
@@ -616,6 +622,9 @@ interface PlaceSummary {
   queue_status?: "low" | "medium" | "busy" | null;
 }
 
+// Place detail - place object includes up to 4 image URLs from crawler
+// PlaceBasic.images?: string[] | null  (see types/index.ts)
+
 // Transit (Swiss Transit integration via transport.opendata.ch)
 interface TransitInfo {
   duration_minutes: number;
@@ -632,15 +641,14 @@ interface FlashDeal {
   remaining?: number;
 }
 
-// SSE Events
-type RequestSseEvent =
-  | { type: "intent_parsed"; request_id: string; intent: Record<string, unknown> }
-  | { type: "stores_crawled"; request_id: string; store_count: number; results: PlaceSummary[] }
-  | { type: "transit_computed"; request_id: string; results: PlaceSummary[] }
-  | { type: "reviews_fetched"; request_id: string; reviews: ReviewFetchedItem[] }
-  | { type: "scores_computed"; request_id: string; results: PlaceSummary[] }
-  | { type: "recommendations_ready"; request_id: string; results: PlaceSummary[] }
-  | { type: "completed"; request_id: string; results: PlaceSummary[] };
+// SSE Events (POST /api/requests?stream=true — implemented)
+type StreamEvent =
+  | { type: "progress"; status: "starting" | "done"; agent: string; message?: string; duration_ms?: number }
+  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[] }
+  | { type: "error"; message?: string };
+
+// Legacy / future GET /requests/{id}/stream (7 named events — not implemented)
+type RequestSseEvent = { type: "intent_parsed" | "stores_crawled" | ...; request_id: string; ... };
 ```
 
 ### Full Type Reference
@@ -779,18 +787,18 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
    ↓
 3. Chat.tsx reads query from URL params
    ↓
-4. useEffect triggers processQuery() which calls startSearch(query, location)
+4. useEffect triggers processQuery() which calls startSearch(query, location, { stream: true })
    ↓
-5. POST /api/requests/?stream=false
+5. POST /api/requests/?stream=true (Accept: text/event-stream)
    ↓
-6. AgentPipeline component shows progress (simulated stages)
+6. Frontend consumes response body as SSE (getReader); AgentPipeline shows progress from progress "starting" events and per-step duration from "done" duration_ms
    ↓
-7. Backend runs agent pipeline:
+7. Backend runs agent pipeline (events pushed in real time via on_node_start callback):
    - intent_parser → crawling_search → transit_calculator
    - evaluation_agent + review_agent (parallel)
    - orchestrator_agent → output_ranking
    ↓
-8. Response: { request, results }
+8. Final event: { type: "result", request, results }
    ↓
 9. Results stored in ChatContext (lastSearchResults, lastSearchQuery)
    ↓
@@ -801,9 +809,7 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
     - ChatContext also has results for persistence
 ```
 
-**Note:** SSE streaming mode (`stream=true`) is reserved for future implementation.
-The current implementation uses JSON mode (`stream=false`) with simulated pipeline
-stage visualization for UI feedback.
+**Note:** Chat uses SSE streaming (`stream=true`). The same POST response is `text/event-stream`; the frontend parses progress (starting/done with duration_ms) and result events to drive AgentPipeline and final results.
 
 ### State Persistence Flow (Tab Navigation)
 
@@ -1116,4 +1122,4 @@ import type { PlaceSummary } from "@/types";
 
 ---
 
-*Last updated: 2026-03-14 (Session: Chat context persistence, tab navigation fixes)*
+*Last updated: 2026-03-15 (Session: Place images from crawler, PlaceDetail hero carousel, back button no re-request)*
