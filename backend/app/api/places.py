@@ -53,6 +53,7 @@ async def get_place_detail(place_id: str, request_id: str | None = None):
         "opening_hours": _format_opening_hours(raw.get("opening_hours", {})),
         "social_profiles": raw.get("social_profiles"),
         "popular_times": raw.get("popular_times"),
+        "images": raw.get("images", []),
         "detailed_characteristics": None,  # Could extract from Apify amenities
     }
     

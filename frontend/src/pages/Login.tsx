@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { User, Store, ArrowRight, Mail, Lock, ShoppingBag, ChevronLeft } from "lucide-react";
 import { useAuth, type UserRole } from "@/contexts/AuthContext";
 import { usePreferences } from "@/hooks/usePreferences";
-import OnboardingSurvey from "@/components/OnboardingSurvey";
+import OnboardingSurvey from "@/components/onboarding/OnboardingSurvey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

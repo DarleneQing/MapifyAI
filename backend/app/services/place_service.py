@@ -89,6 +89,7 @@ class PlaceService:
             "social_profiles": place.get("social_profiles", {}),
             "review_distribution": place.get("review_distribution"),
             "popular_times": place.get("popular_times"),
+            "images": place.get("images", []),
             "review_summary": review_summary,
             "transit": transit,
             "one_sentence_recommendation": recommendation,

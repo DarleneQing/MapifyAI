@@ -310,61 +310,25 @@
 }
 ```
 
-**流式模式（推荐 for US-21）：**
+**流式模式（推荐 for US-21，已实现）：**
 
-- 客户端设置 `Accept: text/event-stream` 或 `?stream=true`
-- 状态码：`200 OK`，SSE 事件示例：
+- 客户端设置 `Accept: text/event-stream`，URL 使用 `?stream=true`
+- 状态码：`200 OK`，同一 POST 响应体为 `text/event-stream`，每行 `data: <JSON>\n\n`，类型由 JSON 的 `type` 区分：
 
 ```json
-// event: intent_parsed — Input Agent 完成意图解析
-{
-  "type": "intent_parsed",
-  "request_id": "req_123",
-  "intent": { /* Intent JSON */ }
-}
+// progress（starting）— 某节点即将开始时立即推送，用于前端实时切换当前步骤
+{ "type": "progress", "status": "starting", "agent": "intent_parser", "message": "Understanding your request..." }
 
-// event: stores_crawled — Crawling Agent Sub-1 (Apify) 完成店铺搜索
-{
-  "type": "stores_crawled",
-  "request_id": "req_123",
-  "store_count": 18,
-  "results": [ /* PlaceSummary[] 基础信息，尚无评分和评论 */ ]
-}
+// progress（done）— 该节点完成后推送，含后端实测耗时（毫秒）
+{ "type": "progress", "status": "done", "agent": "intent_parser", "duration_ms": 1400, "message": "Request understood" }
 
-// event: transit_computed — Crawling Agent Sub-2 (Swiss Transit API) 完成交通计算
-{
-  "type": "transit_computed",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含 transit 字段 */ ]
-}
+// 其他 agent：crawling_search, transit_calculator, review_agent, evaluation_agent, orchestrator_agent, output_ranking
 
-// event: reviews_fetched — Review Agent 完成评论抓取与 LLM 摘要
-{
-  "type": "reviews_fetched",
-  "request_id": "req_123",
-  "reviews": [ /* { place_id, advantages, disadvantages } */ ]
-}
+// result — 全管道结束
+{ "type": "result", "request": { "id": "req_123", ... }, "results": [ /* PlaceSummary[] */ ] }
 
-// event: scores_computed — Evaluation Agent 完成评分计算
-{
-  "type": "scores_computed",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含 recommendation_score */ ]
-}
-
-// event: recommendations_ready — Orchestrator Agent 完成聚合与优化
-{
-  "type": "recommendations_ready",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含推荐理由 */ ]
-}
-
-// event: completed — Output Agent 完成，最终结果
-{
-  "type": "completed",
-  "request_id": "req_123",
-  "results": [ /* 最终 Top 10，含 one_sentence_recommendation */ ]
-}
+// error — 管道或请求错误
+{ "type": "error", "message": "..." }
 ```
 
 ---
@@ -386,13 +350,13 @@
 
 ---
 
-#### 3.3 订阅某 Request 的结果流（单独 SSE）
+#### 3.3 订阅某 Request 的结果流（单独 SSE，预留）
 
 **GET** `/api/requests/{request_id}/stream`
 
 **说明**：  
 已有 `request_id` 的情况下，单独开启 SSE 通道接收结果更新。  
-事件格式与 3.1 中流式返回一致。
+**当前未实现**；推荐使用 3.1 流式模式（同一 POST 即返回 SSE）。若未来实现，事件格式可与 3.1 的 progress/result/error 对齐。
 
 ---
 

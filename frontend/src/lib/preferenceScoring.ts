@@ -3,7 +3,7 @@
  * Uses UserPreferences from OnboardingSurvey to dynamically rank places.
  */
 import type { PlaceSummary } from "@/types";
-import type { UserPreferences } from "@/components/OnboardingSurvey";
+import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
 
 // Category tags mapped to mock place data for matching
 const PLACE_CATEGORIES: Record<string, string[]> = {

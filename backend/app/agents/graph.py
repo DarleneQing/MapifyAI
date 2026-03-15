@@ -27,6 +27,7 @@ generates one_sentence_recommendation per place.
 If APIFY_API_TOKEN is not set, crawling_search falls back to the local seed file.
 """
 import json
+import threading
 import time
 
 from langgraph.graph import StateGraph, END
@@ -43,6 +44,20 @@ from app.config import (
     ORCHESTRATOR_BASE_URL,
 )
 from app.models.schemas import UserPreferences, LatLng
+
+# Thread-local storage so multiple concurrent requests each have their own callback.
+# The background thread running stream_pipeline() sets this; node wrappers read it.
+_node_callback = threading.local()
+
+
+def _wrap(name: str, fn):
+    """Wrap a node function to fire the thread-local callback before it runs."""
+    def wrapped(state):
+        cb = getattr(_node_callback, "fn", None)
+        if cb:
+            cb(name, "starting")
+        return fn(state)
+    return wrapped
 
 
 # ---------------------------------------------------------------------------
@@ -307,13 +322,13 @@ def _after_transit(state: PlannerState):
 def build_graph():
     graph = StateGraph(PlannerState)
 
-    graph.add_node("intent_parser", intent_parser.run)
-    graph.add_node("crawling_search", _crawling_search_node)
-    graph.add_node("transit_calculator", _transit_calculator_node)
-    graph.add_node("evaluation_agent", _evaluation_node)
-    graph.add_node("review_agent", _review_node)
-    graph.add_node("orchestrator_agent", _orchestrator_node)
-    graph.add_node("output_ranking", _output_ranking_node)
+    graph.add_node("intent_parser",      _wrap("intent_parser",      intent_parser.run))
+    graph.add_node("crawling_search",    _wrap("crawling_search",    _crawling_search_node))
+    graph.add_node("transit_calculator", _wrap("transit_calculator", _transit_calculator_node))
+    graph.add_node("evaluation_agent",   _wrap("evaluation_agent",   _evaluation_node))
+    graph.add_node("review_agent",       _wrap("review_agent",       _review_node))
+    graph.add_node("orchestrator_agent", _wrap("orchestrator_agent", _orchestrator_node))
+    graph.add_node("output_ranking",     _wrap("output_ranking",     _output_ranking_node))
 
     graph.set_entry_point("intent_parser")
     graph.add_edge("intent_parser", "crawling_search")
@@ -394,15 +409,25 @@ def run_pipeline(
     return pipeline.invoke(initial_state)
 
 
-# Human-readable messages shown to the user for each agent step
-AGENT_PROGRESS_MESSAGES: dict[str, str] = {
-    "intent_parser": "Understanding your request...",
-    "crawling_search": "Searching Google Maps for nearby places...",
+# Messages sent BEFORE a node starts and AFTER it finishes
+AGENT_START_MESSAGES: dict[str, str] = {
+    "intent_parser":      "Understanding your request...",
+    "crawling_search":    "Searching Google Maps for nearby places...",
     "transit_calculator": "Calculating transit times via SBB...",
-    "evaluation_agent": "Scoring and ranking candidates...",
-    "review_agent": "Summarizing customer reviews...",
+    "evaluation_agent":   "Scoring and ranking candidates...",
+    "review_agent":       "Summarizing customer reviews...",
     "orchestrator_agent": "Generating personalized recommendations...",
-    "output_ranking": "Finalizing your top results...",
+    "output_ranking":     "Finalizing your top results...",
+}
+
+AGENT_DONE_MESSAGES: dict[str, str] = {
+    "intent_parser":      "Request understood",
+    "crawling_search":    "Found nearby places",
+    "transit_calculator": "Transit times calculated",
+    "evaluation_agent":   "Candidates scored",
+    "review_agent":       "Reviews summarized",
+    "orchestrator_agent": "Recommendations ready",
+    "output_ranking":     "Done!",
 }
 
 
@@ -411,14 +436,20 @@ def stream_pipeline(
     location: LatLng | dict,
     preferences: UserPreferences | dict | None = None,
     review_mode: str | None = None,
+    on_node_start=None,
 ):
     """
-    Generator that uses LangGraph's .stream() to yield progress events as each
-    agent node completes.
+    Generator that yields "done" events as each agent node completes, plus a
+    final "result" event with the full PlannerState.
 
-    Yields dicts:
-      {"type": "progress", "agent": <name>, "message": <human-readable text>}
-      ...
+    "starting" events are dispatched **immediately** (before the node runs)
+    via the ``on_node_start`` callback, which the caller should wire to an
+    async queue so the frontend receives them in real-time.  If no callback is
+    provided, "starting" events are yielded together with "done" (batched,
+    not real-time — kept for backwards-compat / tests).
+
+    Yields:
+      {"type": "progress", "status": "done", "agent": ..., "duration_ms": ...}
       {"type": "result", "state": <final PlannerState>}
     """
     initial_state = _build_initial_state(
@@ -429,11 +460,41 @@ def stream_pipeline(
     )
     final_state: PlannerState | None = None
 
-    for chunk in pipeline.stream(initial_state):
-        # chunk = {node_name: partial_state_dict}
-        node_name = next(iter(chunk))
-        final_state = chunk[node_name]  # last chunk carries full merged state
-        message = AGENT_PROGRESS_MESSAGES.get(node_name, f"{node_name} completed")
-        yield {"type": "progress", "agent": node_name, "message": message}
+    _start_buffer: list[dict] = []
+    _node_start_ms: dict[str, float] = {}
+
+    def _on_node_start(name: str, _status: str) -> None:
+        _node_start_ms[name] = time.time() * 1000
+        event = {
+            "type": "progress",
+            "status": "starting",
+            "agent": name,
+            "message": AGENT_START_MESSAGES.get(name, f"Starting {name}..."),
+        }
+        if on_node_start is not None:
+            on_node_start(event)
+        else:
+            _start_buffer.append(event)
+
+    _node_callback.fn = _on_node_start
+    try:
+        for chunk in pipeline.stream(initial_state):
+            if _start_buffer:
+                yield from _start_buffer
+                _start_buffer.clear()
+
+            node_name = next(iter(chunk))
+            final_state = chunk[node_name]
+            start_ms = _node_start_ms.get(node_name)
+            duration_ms = int(time.time() * 1000 - start_ms) if start_ms is not None else None
+            yield {
+                "type": "progress",
+                "status": "done",
+                "agent": node_name,
+                "duration_ms": duration_ms,
+                "message": AGENT_DONE_MESSAGES.get(node_name, f"{node_name} completed"),
+            }
+    finally:
+        _node_callback.fn = None
 
     yield {"type": "result", "state": final_state}

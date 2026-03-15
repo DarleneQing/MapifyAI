@@ -2,8 +2,8 @@ import { useRef, useEffect, useCallback, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Sparkles, User, MapPin, Star, ExternalLink } from "lucide-react";
-import BottomTabBar from "@/components/BottomTabBar";
-import AgentPipeline from "@/components/AgentPipeline";
+import BottomTabBar from "@/components/layout/BottomTabBar";
+import AgentPipeline from "@/components/chat/AgentPipeline";
 import { useSearchStream } from "@/hooks/useSearchStream";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useDeviceLocation } from "@/hooks/useDeviceLocation";
@@ -18,7 +18,7 @@ export default function Chat() {
   const hasAutoSent = useRef(false);
   const { preferences } = usePreferences();
   const { location } = useDeviceLocation();
-  const { results, isLoading, pipelineStage, startSearch, reset } = useSearchStream(preferences);
+  const { results, isLoading, pipelineStage, stepDurations, startSearch, reset } = useSearchStream(preferences);
 
   const urlQuery = searchParams.get("q");
 
@@ -57,26 +57,26 @@ export default function Chat() {
 
     reset();
     setCurrentQuery(queryText);
-    startSearch(queryText, location);
+    startSearch(queryText, location, { stream: true });
   }, [location, startSearch, reset]);
 
-  // Auto-send from URL query (only if not already in conversation)
+  // Auto-send from URL query (only if not already in conversation or just returned from another screen)
   useEffect(() => {
-    if (urlQuery && !hasAutoSent.current && location) {
-      // Check if this query was already sent in the current conversation
-      const alreadySent = messages.some(
-        (m) => m.role === "user" && m.content === urlQuery
-      );
-      if (alreadySent) {
-        hasAutoSent.current = true;
-        return;
-      }
+    if (!urlQuery || !location) return;
+    // Already sent: in conversation, or same as last search (e.g. returned from place detail — do not start a new request)
+    const alreadySent =
+      hasAutoSent.current ||
+      messages.some((m) => m.role === "user" && m.content === urlQuery) ||
+      lastSearchQuery === urlQuery;
+    if (alreadySent) {
       hasAutoSent.current = true;
-      const userMsg: Message = { id: Date.now().toString(), role: "user", content: urlQuery };
-      setMessages((prev) => [...prev, userMsg]);
-      processQuery(urlQuery);
+      return;
     }
-  }, [urlQuery, location, processQuery, messages, setMessages]);
+    hasAutoSent.current = true;
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: urlQuery };
+    setMessages((prev) => [...prev, userMsg]);
+    processQuery(urlQuery);
+  }, [urlQuery, location, processQuery, messages, setMessages, lastSearchQuery]);
 
   const sendMessage = () => {
     if (!input.trim() || isLoading) return;
@@ -121,7 +121,7 @@ export default function Chat() {
               <div className="max-w-[80%]">
                 {/* Completed pipeline summary for this message */}
                 {msg.showPipeline && (
-                  <AgentPipeline stage="completed" isVisible />
+                  <AgentPipeline stage="completed" isVisible stepDurations={stepDurations} />
                 )}
 
                 <div
@@ -215,7 +215,7 @@ export default function Chat() {
               <Sparkles className="w-3.5 h-3.5 text-primary" />
             </div>
             <div className="max-w-[85%] w-full">
-              <AgentPipeline stage={pipelineStage} isVisible />
+              <AgentPipeline stage={pipelineStage} isVisible stepDurations={stepDurations} />
             </div>
           </motion.div>
         )}

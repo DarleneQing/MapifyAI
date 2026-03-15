@@ -82,77 +82,29 @@
 }
 ```
 
-- **SSE 事件格式**（事件名 + data，Controller 负责按此格式输出）：
+- **SSE 事件格式**（同一 POST 响应体为 `text/event-stream`，每行 `data: <JSON>\n\n`；**无** 单独 `event:` 名，类型由 JSON 的 `type` 区分）：
+  - **progress（starting）**：某 Agent 节点**即将开始**时立即推送（用于前端实时切换“当前步骤”文案）：
+    - `{ "type": "progress", "status": "starting", "agent": "<node_name>", "message": "..." }`
+  - **progress（done）**：该节点**完成后**推送，含后端实测耗时：
+    - `{ "type": "progress", "status": "done", "agent": "<node_name>", "duration_ms": <number>, "message": "..." }`
+  - **result**：全管道结束，最终结果：
+    - `{ "type": "result", "request": { "id": "req_123", ... }, "results": [ /* PlaceSummary[] */ ] }`
+  - **error**：管道或请求错误：
+    - `{ "type": "error", "message": "..." }`
 
-```json
-// event: intent_parsed — Input Agent 完成意图解析
-{
-  "type": "intent_parsed",
-  "request_id": "req_123",
-  "intent": { /* Intent JSON */ }
-}
-
-// event: stores_crawled — Crawling Agent Sub-1 (Apify) 完成店铺搜索
-{
-  "type": "stores_crawled",
-  "request_id": "req_123",
-  "store_count": 18,
-  "results": [ /* PlaceSummary[] 基础信息 */ ]
-}
-
-// event: transit_computed — Crawling Agent Sub-2 (Swiss Transit API) 完成交通计算
-{
-  "type": "transit_computed",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含 transit 字段 */ ]
-}
-
-// event: reviews_fetched — Review Agent 完成评论抓取与 LLM 摘要
-{
-  "type": "reviews_fetched",
-  "request_id": "req_123",
-  "reviews": [ /* { place_id, advantages, disadvantages } */ ]
-}
-
-// event: scores_computed — Evaluation Agent 完成评分计算
-{
-  "type": "scores_computed",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含 recommendation_score */ ]
-}
-
-// event: recommendations_ready — Orchestrator Agent 完成聚合与优化
-{
-  "type": "recommendations_ready",
-  "request_id": "req_123",
-  "results": [ /* PlaceSummary[] 含推荐理由 */ ]
-}
-
-// event: completed — Output Agent 完成，最终结果
-{
-  "type": "completed",
-  "request_id": "req_123",
-  "results": [ /* 最终 Top 10，含 one_sentence_recommendation */ ]
-}
-```
+- **后端 Agent 名与前端 PipelineStage 对应**（前端用 `status === "starting"` 更新当前步骤，用 `duration_ms` 展示每步耗时）：
+  - `intent_parser` → Understanding Intent（intent_parsed）
+  - `crawling_search` → Discovering Places（stores_crawled）
+  - `transit_calculator` → Computing Routes（transit_computed）
+  - `review_agent` → Analyzing Reviews（reviews_fetched）
+  - `evaluation_agent` → Scoring & Ranking（scores_computed）
+  - `orchestrator_agent` / `output_ranking` → Generating Advice（recommendations_ready）
 
 - **前端处理建议**：
-  - 收到 `intent_parsed`：
-    - 保存 `request_id`；
-    - 显示“已理解你的需求，正在搜索…”。
-  - 收到 `stores_crawled`：
-    - 用基础信息初始化列表骨架屏和地图标注。
-  - 收到 `transit_computed`：
-    - 为每个卡片填充公共交通信息（时长、交通方式）。
-  - 收到 `reviews_fetched`：
-    - 填充优势 / 劣势摘要标签。
-  - 收到 `scores_computed`：
-    - 按 `recommendation_score` 重新排序列表。
-  - 收到 `recommendations_ready`：
-    - 填充推荐理由标签。
-  - 收到 `completed`：
-    - 用最终 `results` 替换本地列表（含 `one_sentence_recommendation`）。
-    - 关闭 loading / 显示“已为你找到 X 个地点”。
+  - 收到 `progress` 且 `status === "starting"`：按 `agent` 映射到上述阶段，更新 UI 当前步骤（如“Discovering Places”）。
+  - 收到 `progress` 且 `status === "done"`：用 `duration_ms` 写入该步骤耗时并展示。
+  - 收到 `result`：用 `results` 替换本地列表，关闭 loading，显示“已为你找到 X 个地点”。
+  - 收到 `error`：关闭 loading，可选回退 mock 或提示错误。
 
 - **前端结果缓存策略（ChatContext）**：
   - 搜索结果存入 React Context（`ChatContext`），在用户切换 Tab 时保持数据。
@@ -161,7 +113,7 @@
   - 详见 `frontend-architecture.md` § 9 State Management - ChatContext。
 
 **方式 B：先 `POST` 拿 `request_id`，再用 `GET /api/requests/{id}/stream` 开 SSE**  
-见下文 2.3。
+当前后端**未实现**该独立 GET 流端点；仅支持方式 A（同一 POST 返回 SSE）。
 
 ---
 
@@ -186,15 +138,12 @@
 
 ---
 
-### 2.3 单独订阅某 Request 的搜索结果流（SSE）
+### 2.3 单独订阅某 Request 的搜索结果流（SSE，预留）
 
 - **URL**：`GET /api/requests/{request_id}/stream`
-- **用途**：
-  - 前端在已经拿到 `request_id` 的情况下（如从历史记录点进），再开启 SSE 通道获取最新搜索进度。
-
-- **请求方式**：
-  - `GET`，`Accept: text/event-stream`
-- **事件格式**：与 2.1.2 中 7 阶段事件一致（`intent_parsed` → `stores_crawled` → `transit_computed` → `reviews_fetched` → `scores_computed` → `recommendations_ready` → `completed`）。
+- **用途**：前端在已拿到 `request_id` 的情况下再开 SSE 通道获取进度（如从历史进入）。
+- **当前状态**：**未实现**。推荐流程使用 2.1.2 方式 A（`POST /api/requests?stream=true` 同一响应体即 SSE）。
+- **请求方式**：`GET`，`Accept: text/event-stream`（若未来实现，事件格式可与 2.1.2 的 progress/result/error 对齐）。
 
 ---
 
@@ -270,6 +219,10 @@
         "mon": [0, 10, 30, 50, 40, 20],
         "tue": [0, 5, 15, 35, 45, 25]
       },
+      "images": [
+        "https://lh5.googleusercontent.com/p/AF1Q...",
+        "https://lh5.googleusercontent.com/p/AF1Q..."
+      ],
       "detailed_characteristics": [
         "Kid-friendly",
         "Outdoor seating",
@@ -319,7 +272,8 @@
 ```
 
 - **前端约定**：
-  - 详情页顶部展示 `place` 的基础信息和营业状态，并提供社交媒体跳转按钮。
+  - 详情页顶部展示 `place` 的基础信息和营业状态；`place.images` 为最多 4 张地点图片 URL 数组（来自爬虫），可用于顶部 hero 轮播（左/右切换、指示点）。
+  - 提供社交媒体跳转按钮。
   - 中间区域展示评论摘要（优势 `advantages` / 劣势 `disadvantages`）、评分分布图以及热门时段（`popular_times`）可视化。
   - 推荐理由区域使用 `recommendation_reasons` 渲染“为什么推荐这家”，并在合适位置展示 `questions_and_answers` 与 `customer_updates` 精选内容。
 
@@ -839,50 +793,28 @@ export interface RequestWithResults {
   results: PlaceSummary[];
 }
 
-// SSE 事件（2.1.2 / 2.3），前端可据此做类型收窄 — 7 阶段 Agent 管道
+// SSE 事件（2.1.2 方式 A 已实现）：同一 POST 响应体 text/event-stream，由 type 区分
 export interface ReviewFetchedItem {
   place_id: string;
   advantages: string[];
   disadvantages: string[];
 }
 
+// 当前实现：POST /api/requests?stream=true 返回的 SSE 事件
+export type StreamEvent =
+  | { type: "progress"; status: "starting" | "done"; agent: string; message?: string; duration_ms?: number }
+  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[] }
+  | { type: "error"; message?: string };
+
+// 2.3 若实现 GET /requests/{id}/stream 时可用 — 7 阶段命名事件（预留）
 export type RequestSseEvent =
-  | {
-      type: "intent_parsed";
-      request_id: string;
-      intent: Record<string, unknown>;
-    }
-  | {
-      type: "stores_crawled";
-      request_id: string;
-      store_count: number;
-      results: PlaceSummary[];
-    }
-  | {
-      type: "transit_computed";
-      request_id: string;
-      results: PlaceSummary[];
-    }
-  | {
-      type: "reviews_fetched";
-      request_id: string;
-      reviews: ReviewFetchedItem[];
-    }
-  | {
-      type: "scores_computed";
-      request_id: string;
-      results: PlaceSummary[];
-    }
-  | {
-      type: "recommendations_ready";
-      request_id: string;
-      results: PlaceSummary[];
-    }
-  | {
-      type: "completed";
-      request_id: string;
-      results: PlaceSummary[];
-    };
+  | { type: "intent_parsed"; request_id: string; intent: Record<string, unknown> }
+  | { type: "stores_crawled"; request_id: string; store_count: number; results: PlaceSummary[] }
+  | { type: "transit_computed"; request_id: string; results: PlaceSummary[] }
+  | { type: "reviews_fetched"; request_id: string; reviews: ReviewFetchedItem[] }
+  | { type: "scores_computed"; request_id: string; results: PlaceSummary[] }
+  | { type: "recommendations_ready"; request_id: string; results: PlaceSummary[] }
+  | { type: "completed"; request_id: string; results: PlaceSummary[] };
 
 // 详情页所需结构，来自 4.1 响应示例
 export interface OpeningHoursToday {
@@ -903,6 +835,8 @@ export interface PlaceBasic {
   price_level: "low" | "medium" | "high" | string;
   status: "open_now" | "closing_soon" | "closed" | string;
   opening_hours?: OpeningHoursToday | null;
+  /** 最多 4 张地点图片 URL，来自爬虫；用于详情页 hero 轮播 */
+  images?: string[] | null;
 }
 
 export interface ReviewSummary {

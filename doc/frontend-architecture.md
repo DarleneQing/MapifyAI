@@ -53,47 +53,50 @@ frontend/
 ├── src/
 │   ├── components/              # UI Components
 │   │   ├── ui/                  # shadcn/ui primitives (40+ components)
-│   │   ├── BottomTabBar.tsx     # Fixed mobile navigation
-│   │   ├── PlaceCard.tsx        # Place list item
-│   │   ├── MapBackground.tsx    # Leaflet map wrapper
-│   │   ├── AgentPipeline.tsx    # AI pipeline visualization
-│   │   ├── OnboardingSurvey.tsx # Taste profile wizard
-│   │   ├── ChatDrawer.tsx       # AI chat bottom sheet
-│   │   └── ...
+│   │   ├── place/               # Place cards, detail, reviews, bid/queue
+│   │   │   ├── PlaceCard.tsx, RatingDistributionChart.tsx, ReviewsList.tsx, ...
+│   │   │   └── README.md
+│   │   ├── chat/                # AI chat, pipeline, FAB
+│   │   │   ├── ChatDrawer.tsx, AgentPipeline.tsx, AIChatOverlay.tsx
+│   │   │   └── README.md
+│   │   ├── explore/             # Map, pins, search, vibe filters
+│   │   │   ├── MapBackground.tsx, MapPins.tsx, SearchBar.tsx, VibeFilter.tsx
+│   │   │   └── README.md
+│   │   ├── layout/              # Tab bar, sidebar, notification center
+│   │   │   ├── BottomTabBar.tsx, AppSidebar.tsx, NavLink.tsx, ...
+│   │   │   └── README.md
+│   │   ├── onboarding/         # Taste profile wizard
+│   │   │   ├── OnboardingSurvey.tsx
+│   │   │   └── README.md
+│   │   ├── merchant/           # Merchant onboarding
+│   │   │   ├── MerchantOnboarding.tsx
+│   │   │   └── README.md
+│   │   └── debug/              # Debug trace panel
+│   │       ├── DebugTracePanel.tsx, DebugTraceWrapper.tsx
+│   │       └── README.md
 │   ├── contexts/                # React Context providers
-│   │   ├── AuthContext.tsx      # Mock authentication
-│   │   ├── ChatContext.tsx      # Chat messages & search results persistence
+│   │   ├── AuthContext.tsx
+│   │   ├── ChatContext.tsx
 │   │   └── SavedPlacesContext.tsx
 │   ├── hooks/                   # Custom React hooks
-│   │   ├── useSearchStream.ts   # SSE streaming search
-│   │   ├── useDeviceLocation.ts # Geolocation
-│   │   ├── usePreferences.ts    # localStorage preferences
-│   │   └── ...
-│   ├── i18n/                    # Internationalization
-│   │   ├── LanguageContext.tsx  # Language provider
-│   │   ├── en.ts                # English translations
-│   │   └── zh.ts                # Chinese translations
-│   ├── lib/                     # Utility functions
-│   │   ├── utils.ts             # cn() class merging
-│   │   └── preferenceScoring.ts # Preference-based sorting
+│   │   ├── useSearchStream.ts, useDeviceLocation.ts, usePreferences.ts, ...
+│   ├── i18n/
+│   │   ├── LanguageContext.tsx, en.ts, zh.ts
+│   ├── lib/
+│   │   ├── utils.ts, preferenceScoring.ts
 │   ├── pages/                   # Route page components
-│   │   ├── Index.tsx            # Home with map & search
-│   │   ├── Explore.tsx          # Browse all places
-│   │   ├── Chat.tsx             # AI chat interface
-│   │   ├── Recommendations.tsx  # Streaming AI results
-│   │   ├── PlaceDetail.tsx      # Place detail page
-│   │   ├── Profile.tsx          # User settings
-│   │   └── ...
-│   ├── services/                # API layer
-│   │   └── api.ts               # All API calls
-│   ├── test/                    # Test setup
-│   └── types/                   # TypeScript definitions
-│       └── index.ts             # All type interfaces
-├── index.html                   # HTML entry
-├── package.json                 # Dependencies
-├── vite.config.ts               # Vite configuration
-├── tailwind.config.ts           # Tailwind CSS config
-└── tsconfig.json                # TypeScript config
+│   │   ├── Index.tsx, Explore.tsx, Chat.tsx, Recommendations.tsx, ...
+│   ├── services/                # API layer (domain modules + barrel)
+│   │   ├── requests.ts, places.ts, providers.ts, offers.ts
+│   │   ├── profile.ts, location.ts, traces.ts, privacy.ts, health.ts
+│   │   ├── api.ts               # Re-exports all
+│   │   └── README.md
+│   ├── test/
+│   └── types/                   # TypeScript (domain files + barrel)
+│       ├── common.ts, place.ts, request.ts, profile.ts, offer.ts, ...
+│       ├── index.ts             # Re-exports all
+│       └── README.md
+├── index.html, package.json, vite.config.ts, tailwind.config.ts, tsconfig.json
 ```
 
 ---
@@ -213,6 +216,7 @@ const App = () => (
 - Empty state shown when no results available from any source
 
 #### `PlaceDetail.tsx` - Place Page
+- **Hero image carousel**: Up to 4 place images from `detail.place.images` (from `GET /api/places/{place_id}`). When images exist: first image as hero background; left/right chevron buttons to cycle; dots for current index (clickable when multiple images). Light bottom-only gradient overlay when images exist (no full green overlay). When no images, fallback gradient background.
 - Place info header
 - Rating distribution chart
 - Popular times visualization
@@ -220,6 +224,7 @@ const App = () => (
 - Q&A section
 - Flash deals
 - Queue status
+- **Back button**: Top-left back button uses `navigate(-1)` to return to the previous screen without starting a new search (see Chat back-navigation below).
 
 #### `Chat.tsx` - AI Chat
 - Conversational interface with real backend API calls
@@ -231,6 +236,7 @@ const App = () => (
   1. React Router navigation state
   2. Persisted in `ChatContext` for tab switching
 - Chat history preserved when navigating away and returning
+- **Back from Place Detail**: When the user opens a place from Chat then taps the back button on Place Detail, they return to Chat with the same URL (`?q=...`). The Chat page does **not** start a new request: the auto-send effect treats `lastSearchQuery === urlQuery` (and existing user message with same content) as already sent, so no duplicate `processQuery` call.
 
 #### `Profile.tsx` - Settings
 - Preference weight sliders (price/distance/rating)
@@ -252,32 +258,26 @@ const App = () => (
 - Accordion, Carousel, Progress
 - Form, Label, Checkbox, Radio
 
-#### 2. Layout Components
+#### 2. Layout Components (`src/components/layout/`)
 - `BottomTabBar.tsx` - Mobile bottom navigation
   - **Context-aware "Explore" tab**: If `ChatContext` has search results, navigates to `/recommendations`; otherwise to `/explore`
   - "Explore" tab shows active for both `/explore` and `/recommendations` routes
-- `MapBackground.tsx` - Full-screen map container
-- `AIChatOverlay.tsx` - Global chat FAB
+- `MapBackground.tsx` lives in **explore/** - Full-screen map container
+- `AIChatOverlay.tsx` lives in **chat/** - Global chat FAB
   - **Context-aware navigation**: When on `/recommendations`, FAB navigates to `/chat` (preserving conversation) instead of opening overlay
 
-#### 3. Data Display Components
-- `PlaceCard.tsx` - Place list item with:
-  - Transit info (Swiss Transit integration)
-  - Flash deals
-  - Queue status
-  - Recommendation tags
-- `AgentPipeline.tsx` - AI agent step visualization
-- `ReviewsList.tsx` - Review list with pagination
-- `RatingDistributionChart.tsx` - Star rating breakdown
-- `PopularTimesChart.tsx` - Hourly popularity
+#### 3. Data Display Components (`src/components/place/`)
+- `PlaceCard.tsx` - Place list item with transit info, flash deals, queue status, recommendation tags
+- `AgentPipeline.tsx` lives in **chat/** - AI agent step visualization
+- `ReviewsList.tsx`, `RatingDistributionChart.tsx`, `PopularTimesChart.tsx` - Review and rating UI
 
-#### 4. Interactive Components
-- `SearchBar.tsx` - Search with suggestions
-- `OnboardingSurvey.tsx` - Multi-step taste wizard
-- `ChatDrawer.tsx` - Bottom sheet chat
-- `BidDrawer.tsx` - Offer comparison
-- `QueueDrawer.tsx` - Queue management
-- `VibeFilter.tsx` - Vibe tag selection
+#### 4. Interactive Components (spread by feature)
+- **explore/**: `SearchBar.tsx`, `VibeFilter.tsx`
+- **onboarding/**: `OnboardingSurvey.tsx`
+- **chat/**: `ChatDrawer.tsx`
+- **place/**: `BidDrawer.tsx`, `QueueDrawer.tsx`
+
+Each feature folder has a README describing its scope and which pages use it.
 
 ### Component Pattern
 
@@ -306,34 +306,35 @@ export function PlaceCard({ place, onClick, className }: PlaceCardProps) {
 
 ### `useSearchStream.ts` - Core Search Hook
 
-Manages the AI-powered search. Currently uses JSON mode (SSE reserved for future).
+Manages the AI-powered search. Chat page uses **stream mode** (`stream: true`); JSON mode is available for non-stream callers.
 
 ```tsx
 const {
   results,        // PlaceSummary[] - search results
   isLoading,      // boolean - initial loading state
-  isStreaming,    // boolean - mock streaming simulation active
+  isStreaming,    // boolean - stream in progress
   requestId,      // string | null - current request ID
-  pipelineStage,  // PipelineStage - current AI agent step
-  startSearch,    // (query, location, options) => Promise<void>
-  reset,          // () => void - clear state
+  pipelineStage,  // PipelineStage - current AI agent step (from progress.status "starting")
+  stepDurations,  // (number | undefined)[] - per-step duration in ms (from progress "done" duration_ms)
+  startSearch,    // (query, location, options?) => Promise<void>; options.stream defaults false
+  reset,          // () => void - clear state and abort in-flight stream
 } = useSearchStream(userPreferences);
 ```
 
-**Pipeline Stages:**
+**Pipeline Stages (mapped from backend `agent` on `status === "starting"`):**
 1. `idle` - No search active
-2. `intent_parsed` - Query understood
-3. `stores_crawled` - Places fetched
-4. `transit_computed` - Swiss Transit calculated
-5. `reviews_fetched` - Reviews aggregated
-6. `scores_computed` - Scores calculated
-7. `recommendations_ready` - Results ranked
+2. `intent_parsed` - intent_parser
+3. `stores_crawled` - crawling_search (Discovering Places)
+4. `transit_computed` - transit_calculator
+5. `reviews_fetched` - review_agent
+6. `scores_computed` - evaluation_agent
+7. `recommendations_ready` - orchestrator_agent / output_ranking
 8. `completed` - Final results
 
 **Behavior:**
-- Calls `POST /api/requests/?stream=false` (JSON mode)
-- On success: sets results and `pipelineStage` to `completed`
-- On failure: falls back to mock data with simulated pipeline stages
+- **Stream mode** (`options.stream === true`): `POST /api/requests/?stream=true` with `Accept: text/event-stream`; consumes response body via `getReader()` and parses SSE `data: <JSON>\n\n`. Updates `pipelineStage` on `progress.status === "starting"`, `stepDurations` on `progress.status === "done"` using `event.duration_ms`, and final `results` on `result` event.
+- **JSON mode** (default): `POST /api/requests/?stream=false`; parses JSON `{ request, results }`.
+- On stream/network error: falls back to mock data with simulated pipeline stages.
 
 ### `useDeviceLocation.ts` - Geolocation Hook
 
@@ -391,9 +392,9 @@ const {
 
 ## 8. API Service Layer
 
-### File: `src/services/api.ts`
+### Files: `src/services/*.ts` + barrel `src/services/api.ts`
 
-All API calls are centralized with full alignment to backend contract.
+API is split by domain (requests, places, providers, offers, profile, location, traces, privacy, health). All functions are re-exported from `api.ts`; consumers import from `@/services/api`. Full alignment to backend contract (see doc/controller-frontend-contract.md).
 
 ### API Endpoints
 
@@ -401,11 +402,13 @@ All API calls are centralized with full alignment to backend contract.
 ```typescript
 // POST /api/requests/?stream={bool}
 createSearchRequest(query, location, options) → Response
+// When stream=true: response.body is text/event-stream (SSE); frontend consumes via getReader(), not a separate GET.
+// When stream=false: response is JSON { request, results }.
 
 // GET /api/requests/{request_id}
 getRequest(requestId) → RequestWithResults
 
-// GET /api/requests/{request_id}/stream (SSE)
+// GET /api/requests/{request_id}/stream (SSE) — reserved; backend not implemented; use POST stream=true instead
 subscribeRequestStream(requestId, onEvent, onError) → EventSource
 ```
 
@@ -583,7 +586,9 @@ Keys used:
 
 ## 10. TypeScript Types
 
-### File: `src/types/index.ts`
+### Files: `src/types/*.ts` + barrel `src/types/index.ts`
+
+Types are split by domain (common, place, request, profile, offer, provider, trace, privacy). All are re-exported from `index.ts`; consumers import from `@/types`. Keep in sync with controller-frontend-contract.md §10.
 
 ### Core Types
 
@@ -616,6 +621,9 @@ interface PlaceSummary {
   queue_status?: "low" | "medium" | "busy" | null;
 }
 
+// Place detail - place object includes up to 4 image URLs from crawler
+// PlaceBasic.images?: string[] | null  (see types/index.ts)
+
 // Transit (Swiss Transit integration via transport.opendata.ch)
 interface TransitInfo {
   duration_minutes: number;
@@ -632,15 +640,14 @@ interface FlashDeal {
   remaining?: number;
 }
 
-// SSE Events
-type RequestSseEvent =
-  | { type: "intent_parsed"; request_id: string; intent: Record<string, unknown> }
-  | { type: "stores_crawled"; request_id: string; store_count: number; results: PlaceSummary[] }
-  | { type: "transit_computed"; request_id: string; results: PlaceSummary[] }
-  | { type: "reviews_fetched"; request_id: string; reviews: ReviewFetchedItem[] }
-  | { type: "scores_computed"; request_id: string; results: PlaceSummary[] }
-  | { type: "recommendations_ready"; request_id: string; results: PlaceSummary[] }
-  | { type: "completed"; request_id: string; results: PlaceSummary[] };
+// SSE Events (POST /api/requests?stream=true — implemented)
+type StreamEvent =
+  | { type: "progress"; status: "starting" | "done"; agent: string; message?: string; duration_ms?: number }
+  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[] }
+  | { type: "error"; message?: string };
+
+// Legacy / future GET /requests/{id}/stream (7 named events — not implemented)
+type RequestSseEvent = { type: "intent_parsed" | "stores_crawled" | ...; request_id: string; ... };
 ```
 
 ### Full Type Reference
@@ -779,18 +786,18 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
    ↓
 3. Chat.tsx reads query from URL params
    ↓
-4. useEffect triggers processQuery() which calls startSearch(query, location)
+4. useEffect triggers processQuery() which calls startSearch(query, location, { stream: true })
    ↓
-5. POST /api/requests/?stream=false
+5. POST /api/requests/?stream=true (Accept: text/event-stream)
    ↓
-6. AgentPipeline component shows progress (simulated stages)
+6. Frontend consumes response body as SSE (getReader); AgentPipeline shows progress from progress "starting" events and per-step duration from "done" duration_ms
    ↓
-7. Backend runs agent pipeline:
+7. Backend runs agent pipeline (events pushed in real time via on_node_start callback):
    - intent_parser → crawling_search → transit_calculator
    - evaluation_agent + review_agent (parallel)
    - orchestrator_agent → output_ranking
    ↓
-8. Response: { request, results }
+8. Final event: { type: "result", request, results }
    ↓
 9. Results stored in ChatContext (lastSearchResults, lastSearchQuery)
    ↓
@@ -801,9 +808,7 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
     - ChatContext also has results for persistence
 ```
 
-**Note:** SSE streaming mode (`stream=true`) is reserved for future implementation.
-The current implementation uses JSON mode (`stream=false`) with simulated pipeline
-stage visualization for UI feedback.
+**Note:** Chat uses SSE streaming (`stream=true`). The same POST response is `text/event-stream`; the frontend parses progress (starting/done with duration_ms) and result events to drive AgentPipeline and final results.
 
 ### State Persistence Flow (Tab Navigation)
 
@@ -1103,8 +1108,8 @@ import type { PlaceSummary } from "@/types";
 |---------|------|
 | App entry | `src/App.tsx` |
 | Routes | `src/App.tsx` (Routes section) |
-| API calls | `src/services/api.ts` |
-| Types | `src/types/index.ts` |
+| API calls | `src/services/api.ts` (barrel; domain modules in services/*.ts) |
+| Types | `src/types/index.ts` (barrel; domain modules in types/*.ts) |
 | Search logic | `src/hooks/useSearchStream.ts` |
 | Auth state | `src/contexts/AuthContext.tsx` |
 | Chat persistence | `src/contexts/ChatContext.tsx` |
@@ -1112,8 +1117,8 @@ import type { PlaceSummary } from "@/types";
 | AI Chat | `src/pages/Chat.tsx` |
 | AI Results | `src/pages/Recommendations.tsx` |
 | Place detail | `src/pages/PlaceDetail.tsx` |
-| Tab navigation | `src/components/BottomTabBar.tsx` |
+| Tab navigation | `src/components/layout/BottomTabBar.tsx` |
 
 ---
 
-*Last updated: 2026-03-14 (Session: Chat context persistence, tab navigation fixes)*
+*Last updated: 2026-03-15 (Frontend restructure: domain types/services, feature component folders)*

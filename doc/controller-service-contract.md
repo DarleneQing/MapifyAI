@@ -61,18 +61,11 @@
 - 非流式模式时：
   - `orchestrator_service.run_recommendation_pipeline(request_id: str) -> RankedOffersResponse`
     - 触发整个 6-Agent DAG（Input Agent → Crawling Agent → Evaluation Agent / Review Agent → Orchestrator Agent → Output Agent），返回排好序的 `offers` + `request` + 可选 `trace`（PRD 4.1.2 / 4.1.4 / 4.1.5）
-- 流式模式（SSE）时：
-  - `orchestrator_service.start_recommendation_stream(request_id: str, emitter: SseEmitter)`
-    - 按 Agent 执行阶段依次推送 7 个事件：
-      1. `intent_parsed` — Input Agent 完成意图解析
-      2. `stores_crawled` — Crawling Agent Sub-1（Apify Google Maps scraper）完成店铺搜索
-      3. `transit_computed` — Crawling Agent Sub-2（Swiss Transit API）完成交通 ETA 计算
-      4. `reviews_fetched` — Review Agent（Apify 评论抓取 + LLM 摘要）完成
-      5. `scores_computed` — Evaluation Agent 完成评分计算
-      6. `recommendations_ready` — Orchestrator Agent 完成聚合与推荐优化
-      7. `completed` — Output Agent 完成，最终结果（含排名列表 + 一句话推荐）
-  - （可选）`sse_service.build_response(generator) -> StreamingResponse`
-    - 封装 FastAPI 层的 SSE 响应
+- 流式模式（SSE）时（**当前已实现**）：
+  - Controller 调用 `request_service.create_request` 拿到 `request_id`，再在后台线程中调用 `app.agents.graph.stream_pipeline(raw_input, location, preferences, on_node_start=push_to_queue)`。
+  - `stream_pipeline` 在每个节点**开始前**通过 `on_node_start` 回调立即推送 `{ "type": "progress", "status": "starting", "agent": "<name>", "message": "..." }` 到 async 队列，前端可实时切换当前步骤；节点**完成后** yield `{ "type": "progress", "status": "done", "agent": "<name>", "duration_ms": <ms>, "message": "..." }`；最后 yield `{ "type": "result", "state": ... }`，Controller 将其转为 `{ "type": "result", "request", "results" }` 推送给前端。
+  - 事件格式详见 `controller-frontend-contract.md` §2.1.2 与 `backend-analysis.md` §5.2。
+  - （预留）若未来需要 `GET /api/requests/{id}/stream`，可复用上述事件格式或 7 阶段命名事件（`intent_parsed` → `completed`）。
 
 ---
 
@@ -158,6 +151,7 @@ Controller 从 `place_service` 获取的原始数据结构：
     "website_url": "...",
     "social_profiles": {...},
     "popular_times": {...},
+    "images": ["url1", "url2", ...],  # 最多 4 张，来自 Apify 爬虫
     "review_summary": {...},
     "review_distribution": {...},
     "one_sentence_recommendation": "..."
@@ -184,6 +178,7 @@ Controller 转换为前端契约 `PlaceDetailResponse`：
             "opening_hours": _format_opening_hours(raw["opening_hours"]),
             "social_profiles": raw["social_profiles"],
             "popular_times": raw["popular_times"],
+            "images": raw.get("images", []),
             "detailed_characteristics": None,
         },
         "review_summary": raw["review_summary"],
@@ -207,6 +202,7 @@ Controller 转换为前端契约 `PlaceDetailResponse`：
   - 内部由 Service 负责：
     - 优先从内存缓存读取（推荐流程后自动填充）
     - 缓存未命中时回退到 **Apify Google Maps scraper** 获取店铺详情
+    - 返回中需包含 `images`：最多 4 张地点图片 URL 列表（Crawling Agent 在 Apify 中设置 `maxImages: 4`，`transform_apify_result` 从 `imageUrls` / `images[].imageUrl` 取前 4 条写入 provider，经 `cache_places` 与详情接口透传）
     - 评论聚合：从缓存的 reviews 列表生成 `advantages` / `disadvantages` 摘要
     - Transit 计算（如有用户位置）：基于 **Swiss Transit API（transport.opendata.ch）**
     - 生成 `one_sentence_recommendation`

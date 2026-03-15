@@ -89,8 +89,14 @@ def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingRespon
                 preferences = request.get("preferences") or None
                 final_state = None
 
+                def push_start(evt):
+                    loop.call_soon_threadsafe(queue.put_nowait, evt)
+
                 for event in stream_pipeline(
-                    request["raw_input"], request["location"], preferences
+                    request["raw_input"],
+                    request["location"],
+                    preferences,
+                    on_node_start=push_start,
                 ):
                     if event["type"] == "result":
                         final_state = event["state"]

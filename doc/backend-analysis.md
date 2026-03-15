@@ -8,16 +8,16 @@
 
 ## Executive Summary
 
-The backend has a solid foundation with **core functionality implemented**, including the LangGraph multi-agent pipeline, basic CRUD operations, and essential services. However, there are **critical gaps** in SSE streaming, provider/offer services wiring, profile management, and realtime features that prevent full compliance with the documented API contract.
+The backend has a solid foundation with **core functionality implemented**, including the LangGraph multi-agent pipeline, basic CRUD operations, essential services, and **recommendation SSE streaming** via `POST /api/requests?stream=true`. Gaps remain in provider/offer wiring, profile routes, and optional GET stream / offer stream.
 
 ### Quick Stats
 
 | Category | Implemented | Missing/Incomplete | Notes |
 |----------|-------------|-------------------|-------|
-| API Endpoints | 12 | 8 | SSE endpoints not implemented |
+| API Endpoints | 12 | 7 | POST stream=true returns SSE; GET /requests/{id}/stream not implemented |
 | Services | 14 | 5 | Some referenced but not wired |
 | Agents | 7/7 | 0 | Pipeline complete |
-| Realtime/SSE | 0 | 4 | All SSE features missing |
+| Realtime/SSE | 1 | 3 | Recommendation stream via POST; GET stream & offer stream missing |
 
 ---
 
@@ -27,7 +27,7 @@ The backend has a solid foundation with **core functionality implemented**, incl
 
 | Endpoint | Controller | Status | Notes |
 |----------|-----------|--------|-------|
-| `POST /api/requests` | requests.py | ✓ Working | Non-stream mode only |
+| `POST /api/requests` | requests.py | ✓ Working | Non-stream and stream mode; `stream=true` returns SSE from same request |
 | `GET /api/requests/{id}` | requests.py | ✓ Working | |
 | `GET /api/requests/{id}/offers` | requests.py | ✓ Working | |
 | `GET /api/requests/{id}/trace` | requests.py | ✓ Working | Path differs from doc |
@@ -45,7 +45,7 @@ The backend has a solid foundation with **core functionality implemented**, incl
 
 | Documented Endpoint | Priority | Impact |
 |-------------------|----------|--------|
-| `GET /api/requests/{id}/stream` | **High** | SSE streaming for recommendation pipeline |
+| `GET /api/requests/{id}/stream` | Low | Optional re-subscribe; recommendation stream is via POST `?stream=true` |
 | `POST /api/profile/cold-start-survey` | Medium | Cold-start questionnaire (US-09) |
 | `GET /api/profile` | Medium | Full profile retrieval |
 | `PUT /api/profile` | Medium | Full profile update |
@@ -74,7 +74,7 @@ GET /api/profile                    | GET /api/users/me (partial)
 |---------|------|-------|-------|
 | `RequestService` | request_service.py | ✓ Yes | create_request, ensure_request_exists |
 | `OrchestratorService` | orchestrator_service.py | ✓ Yes | run_recommendation_pipeline |
-| `PlaceService` | place_service.py | ✓ Yes | get_place_detail, list_reviews, cache |
+| `PlaceService` | place_service.py | ✓ Yes | get_place_detail, list_reviews, cache; returns `images` (up to 4 URLs) from cache/Apify |
 | `InMemoryProfileService` | profile_service.py | ✓ Yes | Basic preference CRUD |
 | `AnonymousAuthService` | auth_service.py | ✓ Yes | Returns "anonymous" user_id |
 | `LocationService` | location_service.py | ✓ Yes | Device location sync |
@@ -151,7 +151,7 @@ The LangGraph pipeline is **fully implemented** and matches the PRD specificatio
 | Agent | File | Status | External API |
 |-------|------|--------|--------------|
 | Intent Parser | intent_parser.py | ✓ Complete | OpenAI |
-| Crawling Search | crawling_search.py | ✓ Complete | Apify Google Maps |
+| Crawling Search | crawling_search.py | ✓ Complete | Apify Google Maps; `maxImages: 4`, provider dict includes `images` (list of URLs) |
 | Transit Calculator | transit_calculator.py | ✓ Complete | transport.opendata.ch |
 | Evaluation Agent | graph.py | ✓ Complete | - |
 | Review Agent | graph.py + reviews.py | ✓ Basic | OpenAI |
@@ -195,30 +195,26 @@ The pipeline correctly implements parallel execution:
 
 ## 5. Realtime/SSE Features
 
-### 5.1 Status: Not Implemented
+### 5.1 Status: Partially Implemented
 
 | Feature | Documented In | Status |
 |---------|--------------|--------|
-| Recommendation streaming | api-intelligent-local-bid.md §3.1 | ✗ Returns 501 |
+| Recommendation streaming | api-intelligent-local-bid.md §3.1 | ✓ Implemented via `POST /api/requests?stream=true` (same response body is SSE) |
+| GET /requests/{id}/stream | controller-frontend-contract.md §2.3 | ✗ Not implemented (optional) |
 | Offer realtime updates | api-intelligent-local-bid.md §6.4 | ✗ Not implemented |
 | `broadcast_new_offer` | realtime/events.py | ✗ `NotImplementedError` |
 | `broadcast_request_closed` | realtime/events.py | ✗ `NotImplementedError` |
 
-### 5.2 Expected SSE Events (Not Implemented)
+### 5.2 Implemented SSE Event Format (POST stream=true)
 
-Per documentation, `POST /api/requests` with `stream=true` should emit:
+The same POST response has `Content-Type: text/event-stream`. Each line is `data: <JSON>\n\n`:
 
-```
-1. intent_parsed          — Input Agent complete
-2. stores_crawled         — Crawling Agent Sub-1 complete  
-3. transit_computed       — Crawling Agent Sub-2 complete
-4. reviews_fetched        — Review Agent complete
-5. scores_computed        — Evaluation Agent complete
-6. recommendations_ready  — Orchestrator Agent complete
-7. completed              — Output Agent complete
-```
+- **progress (starting)**: `{ "type": "progress", "status": "starting", "agent": "<node_name>", "message": "..." }` — pushed in real time when a node is about to run (via `on_node_start` callback to async queue).
+- **progress (done)**: `{ "type": "progress", "status": "done", "agent": "<node_name>", "duration_ms": <number>, "message": "..." }` — after node completes; `duration_ms` is wall-clock from backend.
+- **result**: `{ "type": "result", "request": {...}, "results": [PlaceSummary[]] }`.
+- **error**: `{ "type": "error", "message": "..." }`.
 
-**Current behavior**: Returns `HTTP 501 Not Implemented`
+Backend agent names: `intent_parser`, `crawling_search`, `transit_calculator`, `review_agent`, `evaluation_agent`, `orchestrator_agent`, `output_ranking`.
 
 ---
 
@@ -290,10 +286,7 @@ class AnonymousAuthService:
 
 ### 8.2 High (P1) — Should Fix
 
-1. **Implement SSE streaming for `/api/requests`**:
-   - Add `SseService` wrapper
-   - Modify `orchestrator_service.run_recommendation_pipeline()` to yield events
-   - Wire SSE response in controller
+1. **Recommendation SSE** is implemented: `POST /api/requests?stream=true` returns SSE (progress starting/done with duration_ms, result, error). Optional: add `GET /api/requests/{id}/stream` for re-subscribe without re-POST.
 
 2. **Integrate `review_analysis/` module** or remove it:
    - Either connect to pipeline's Review Agent

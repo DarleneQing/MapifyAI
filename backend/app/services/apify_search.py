@@ -31,6 +31,7 @@ def search_places(
         "skipClosedPlaces": True,
         "reviewsSort": "mostRelevant",
         "maxReviews": 10,
+        "maxImages": 4,
         "customGeolocation": {
             "type": "Point",
             "coordinates": [str(lng), str(lat)],
