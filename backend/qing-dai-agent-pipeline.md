@@ -16,7 +16,7 @@
 - **Input state**: `run_pipeline()` is called with:
   - **`raw_input: str`** – the user’s free-text request, e.g. `"Need a haircut near Zurich HB in 2 hours"`.
   - **`location: dict`** – `{"lat": float, "lng": float}` from the frontend.
-  - **`preferences: dict | None`** – optional weights, typically shaped like `{"weight_price": 0.6, "weight_distance": 0.2, "weight_rating": 0.2}`.
+  - **`preferences: dict | None`** – optional weights, typically shaped like `{"weight_price": 0.6, "weight_travel": 0.2, "weight_rating": 0.2}`.
   - The graph initialises `retry_count = 0`, empty provider lists, a pending `trace` via `make_trace()`, and `error = None`.
 - **Intent parser**:
   - Builds a system prompt (`SYSTEM_PROMPT`) with today’s date, current time, and user location.

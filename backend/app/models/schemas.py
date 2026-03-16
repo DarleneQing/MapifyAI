@@ -47,11 +47,12 @@ class Provider(BaseModel):
     address: str
     rating: float               # 0.0 – 5.0
     review_count: int = 0
-    price_range: str            # e.g. "CHF 30–60"
+    price_range: str | None = None      # e.g. "CHF 30–60"
     opening_hours: OpeningHours = OpeningHours()
     website_url: str | None = None
     google_maps_url: str | None = None
-    distance_km: float | None = None    # computed at query time, not stored
+    distance_km: float | None = None        # computed at query time, not stored
+    commute_time_minutes: int | None = None  # estimated public transport time, minutes
     reviews: list[dict] | None = None   # mock reviews for summarizer
     images: list[str] | None = None     # up to 4 place image URLs from crawler
 
@@ -65,7 +66,7 @@ class Offer(BaseModel):
     slot_time: datetime
     notes: str | None = None
     score: float | None = None
-    score_breakdown: dict[str, float] | None = None  # {"price": 0.4, "distance": 0.3, ...}
+    score_breakdown: dict[str, float] | None = None  # {"price_score": ..., "travel_score": ..., "rating_score": ...}
     reasons: list[str] | None = None                 # Top-3 explanation strings
     time_label: str | None = None                    # "closes in 20 min — hurry"
     created_at: datetime | None = None
@@ -73,7 +74,7 @@ class Offer(BaseModel):
 
 class UserPreferences(BaseModel):
     weight_price: float = 0.33
-    weight_distance: float = 0.33
+    weight_travel: float = 0.33
     weight_rating: float = 0.34
 
 

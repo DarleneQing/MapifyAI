@@ -488,7 +488,7 @@ def _build_initial_state(
     elif preferences is None:
         prefs_dict = {
             "weight_price": 0.33,
-            "weight_distance": 0.33,
+            "weight_travel": 0.33,
             "weight_rating": 0.34,
         }
     else:

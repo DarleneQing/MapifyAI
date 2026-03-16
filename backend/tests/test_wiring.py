@@ -140,7 +140,7 @@ def test_create_request_works_with_real_services(monkeypatch):
     payload = {
         "raw_input": "Need a haircut near Zurich HB in 2 hours",
         "location": {"lat": 47.378, "lng": 8.54},
-        "preferences": {"weight_price": 0.6, "weight_distance": 0.2, "weight_rating": 0.2},
+        "preferences": {"weight_price": 0.6, "weight_travel": 0.2, "weight_rating": 0.2},
     }
 
     resp = client.post("/api/requests?stream=false", json=payload)

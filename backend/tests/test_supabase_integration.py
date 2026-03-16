@@ -138,7 +138,7 @@ class TestUserProfilesTable:
             "persona": "professional",
             "budget_level": "premium",
             "weight_price": 0.2,
-            "weight_distance": 0.3,
+            "weight_travel": 0.3,
             "weight_rating": 0.3,
             "weight_transit": 0.2,
             "language": "de",
