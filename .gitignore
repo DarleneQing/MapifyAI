@@ -21,3 +21,6 @@ build/
 *.log
 
 skills-lock.json
+
+.agents/
+.claude/

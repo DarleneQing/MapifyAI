@@ -351,7 +351,15 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
             (event) => {
               if (event.type === "progress") {
                 if (event.status === "starting") {
-                  setPipelineStage(agentToStage(event.agent));
+                  // Use firstIncompleteStage so parallel agents (evaluation_agent,
+                  // review_agent) don't jump the stage past steps still in progress.
+                  // e.g. evaluation_agent "starting" must not show "scores_computed"
+                  // while review_agent is still running in advanced mode.
+                  setPipelineStage((cur) =>
+                    cur === "completed"
+                      ? cur
+                      : firstIncompleteStage(stepDurationsRef.current)
+                  );
                 } else if (event.status === "done") {
                   const idx = agentToStepIndex(event.agent);
                   const prev = stepDurationsRef.current;

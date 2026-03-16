@@ -16,6 +16,16 @@ from .apify_client import (
     load_reviews_from_dataset,
     run_google_maps_reviews_scraper,
 )
+from .config import (
+    DEBUG_INCLUDE_SELECTED_REVIEWS_DEFAULT,
+    LANGUAGE_DEFAULT,
+    MAX_REVIEWS_DEFAULT,
+    PERSONAL_DATA_DEFAULT,
+    REVIEWS_START_DATE_DEFAULT,
+    SKIP_EMPTY_TEXT_FOR_SUMMARIZATION_DEFAULT,
+    TOP_K_NEGATIVE_DEFAULT,
+    TOP_K_POSITIVE_DEFAULT,
+)
 from .filtering import analyze_reviews
 from .schemas import ReviewAnalysisRequest
 from .summarizer import (
@@ -27,14 +37,14 @@ from .summarizer import (
 def analyze_and_summarize_reviews(
     dataset_id: Optional[str] = None,
     place_url: Optional[str] = None,
-    top_k_positive: int = 30,
-    top_k_negative: int = 30,
-    skip_empty_text_for_summarization: bool = True,
-    max_reviews: int = 100,
-    reviews_start_date: str = "1 year",
-    language: str = "en",
-    personal_data: bool = False,
-    debug_include_selected_reviews: bool = False,
+    top_k_positive: int = TOP_K_POSITIVE_DEFAULT,
+    top_k_negative: int = TOP_K_NEGATIVE_DEFAULT,
+    skip_empty_text_for_summarization: bool = SKIP_EMPTY_TEXT_FOR_SUMMARIZATION_DEFAULT,
+    max_reviews: int = MAX_REVIEWS_DEFAULT,
+    reviews_start_date: str = REVIEWS_START_DATE_DEFAULT,
+    language: str = LANGUAGE_DEFAULT,
+    personal_data: bool = PERSONAL_DATA_DEFAULT,
+    debug_include_selected_reviews: bool = DEBUG_INCLUDE_SELECTED_REVIEWS_DEFAULT,
 ) -> dict[str, Any]:
     """Run review analysis and summarization in dataset_id or place_url mode."""
     if bool(dataset_id) == bool(place_url):

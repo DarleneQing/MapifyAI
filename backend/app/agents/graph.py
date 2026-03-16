@@ -26,6 +26,7 @@ generates one_sentence_recommendation per place.
 
 If APIFY_API_TOKEN is not set, crawling_search falls back to the local seed file.
 """
+import contextvars
 import json
 import threading
 import time
@@ -45,15 +46,20 @@ from app.config import (
 )
 from app.models.schemas import UserPreferences, LatLng
 
-# Thread-local storage so multiple concurrent requests each have their own callback.
-# The background thread running stream_pipeline() sets this; node wrappers read it.
-_node_callback = threading.local()
+# ContextVar so multiple concurrent requests each have their own callback.
+# Using ContextVar (not threading.local) because LangGraph runs parallel nodes via
+# concurrent.futures.ThreadPoolExecutor, which copies the calling context at submit()
+# time — so worker threads inherit ContextVar values set by stream_pipeline().
+# threading.local() is NOT inherited by child threads and would always read as None.
+_node_callback: contextvars.ContextVar = contextvars.ContextVar(
+    "_node_callback", default=None
+)
 
 
 def _wrap(name: str, fn):
-    """Wrap a node function to fire the thread-local callback before it runs."""
+    """Wrap a node function to fire the context-var callback before it runs."""
     def wrapped(state):
-        cb = getattr(_node_callback, "fn", None)
+        cb = _node_callback.get(None)
         if cb:
             cb(name, "starting")
         return fn(state)
@@ -482,7 +488,7 @@ def stream_pipeline(
         else:
             _start_buffer.append(event)
 
-    _node_callback.fn = _on_node_start
+    _token = _node_callback.set(_on_node_start)
     try:
         for chunk in pipeline.stream(initial_state):
             if _start_buffer:
@@ -502,6 +508,6 @@ def stream_pipeline(
                     "message": AGENT_DONE_MESSAGES.get(node_name, f"{node_name} completed"),
                 }
     finally:
-        _node_callback.fn = None
+        _node_callback.reset(_token)
 
     yield {"type": "result", "state": final_state}
