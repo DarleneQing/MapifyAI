@@ -261,11 +261,11 @@ Provider fields consumed:
 
 Produced per ranked row:
 - all original provider fields
-- price (filled if missing)
+- price (float or None — None when no price signal exists; no fabricated fallback value)
 - score: float
 - score_breakdown:
-  - price_score
-  - distance_score
+  - price_score  (0.0 hard penalty when price is None)
+  - travel_score (renamed from distance_score; driven by commute_time_minutes with distance_km fallback)
   - rating_score
 
 ### 4.4 Final output assembly schema (_output_ranking_node)
