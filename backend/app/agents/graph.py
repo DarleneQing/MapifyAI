@@ -45,6 +45,19 @@ from app.config import (
     ORCHESTRATOR_BASE_URL,
 )
 from app.models.schemas import UserPreferences, LatLng
+from app.agent_synthesis_config import (
+    MAX_PLACES_IN_CONTEXT,
+    ENABLE_REVIEW_SIGNALS,
+    ENABLE_RANKING_SIGNALS,
+    ENABLE_REVIEW_DISADVANTAGES,
+    ENABLE_CONSTRAINT_SIGNALS,
+    SYNTHESIS_BUDGET_TOKENS,
+    SYNTHESIS_REPLY_LENGTH,
+    SYNTHESIS_TONE,
+    SYNTHESIS_FALLBACK_ENABLED,
+)
+from app.agents.synthesis_prompts import build_synthesis_prompt
+from app.services.synthesis_context import select_synthesis_context
 
 # ContextVar so multiple concurrent requests each have their own callback.
 # Using ContextVar (not threading.local) because LangGraph runs parallel nodes via
@@ -313,6 +326,95 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
     return state
 
 
+def _fallback_agent_reply(state: PlannerState) -> str:
+    req = state.get("structured_request") or {}
+    raw_query = (req.get("raw_input") or state.get("raw_input") or "").strip()
+    results = state.get("final_results") or []
+    count = len(results)
+
+    if count <= 0:
+        return "I could not find strong matches yet. Try broadening your preferences or search radius."
+    if count == 1:
+        return "I found one strong option that balances rating, travel time, and review quality."
+    if raw_query:
+        return (
+            f'I found {count} options for "{raw_query}". '
+            "The top picks balance ratings, travel time, and customer feedback. "
+            "Here are the best options to consider."
+        )
+    return (
+        f"I found {count} strong options nearby. "
+        "The top picks balance ratings, travel time, and customer feedback. "
+        "Here are the best options to consider."
+    )
+
+
+def _synthesis_node(state: PlannerState) -> PlannerState:
+    start = time.time() * 1000
+    from openai import OpenAI
+
+    resolved_api_key = ORCHESTRATOR_API_KEY or OPENAI_API_KEY
+    resolved_model = ORCHESTRATOR_MODEL or DEFAULT_MODEL
+    if ORCHESTRATOR_BASE_URL:
+        client = OpenAI(api_key=resolved_api_key, base_url=ORCHESTRATOR_BASE_URL)
+    else:
+        client = OpenAI(api_key=resolved_api_key)
+
+    req = state.get("structured_request") or {}
+    ranked = state.get("ranked_offers") or []
+    results = state.get("final_results") or []
+    review_summaries = state.get("review_summaries", [])
+
+    # Build synthesis context using helper (handles signal toggles and enrichment)
+    config = {
+        "MAX_PLACES_IN_CONTEXT": MAX_PLACES_IN_CONTEXT,
+        "ENABLE_REVIEW_SIGNALS": ENABLE_REVIEW_SIGNALS,
+        "ENABLE_REVIEW_DISADVANTAGES": ENABLE_REVIEW_DISADVANTAGES,
+        "ENABLE_RANKING_SIGNALS": ENABLE_RANKING_SIGNALS,
+        "ENABLE_CONSTRAINT_SIGNALS": ENABLE_CONSTRAINT_SIGNALS,
+    }
+    top_context = select_synthesis_context(results, ranked, review_summaries, config)
+
+    # Build prompt using helper (handles style/tone/length)
+    prompt_dict = build_synthesis_prompt(
+        req,
+        top_context,
+        len(results),
+        {
+            "SYNTHESIS_REPLY_LENGTH": SYNTHESIS_REPLY_LENGTH,
+            "SYNTHESIS_TONE": SYNTHESIS_TONE,
+        },
+    )
+
+    reply = ""
+    try:
+        response = client.chat.completions.create(
+            model=resolved_model,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": prompt_dict["system"]},
+                {"role": "user", "content": prompt_dict["user"]},
+            ],
+        )
+        data = json.loads(response.choices[0].message.content)
+        reply = str(data.get("agent_reply") or "").strip()
+    except Exception:
+        reply = ""
+
+    if not reply and SYNTHESIS_FALLBACK_ENABLED:
+        reply = _fallback_agent_reply(state)
+
+    state["agent_reply"] = reply
+    state["trace"] = add_step(
+        state["trace"],
+        agent="synthesis_agent",
+        input_data={"results": len(results), "top_places": len(top_context)},
+        output_data={"agent_reply": bool(reply)},
+        start_ms=start,
+    )
+    return state
+
+
 # ---------------------------------------------------------------------------
 # Conditional edge after transit_calculator
 # Retry crawling_search with wider radius if no candidates remain
@@ -341,6 +443,8 @@ def build_graph():
     graph.add_node("review_agent",       _wrap("review_agent",       _review_node))
     graph.add_node("orchestrator_agent", _wrap("orchestrator_agent", _orchestrator_node))
     graph.add_node("output_ranking",     _wrap("output_ranking",     _output_ranking_node))
+    # Keep synthesis node silent in stream progress to avoid changing current frontend stage mapping.
+    graph.add_node("synthesis_agent",    _synthesis_node)
 
     graph.set_entry_point("intent_parser")
     graph.add_edge("intent_parser", "crawling_search")
@@ -358,7 +462,8 @@ def build_graph():
     graph.add_edge("evaluation_agent", "orchestrator_agent")
     graph.add_edge("review_agent", "orchestrator_agent")
     graph.add_edge("orchestrator_agent", "output_ranking")
-    graph.add_edge("output_ranking", END)
+    graph.add_edge("output_ranking", "synthesis_agent")
+    graph.add_edge("synthesis_agent", END)
 
     return graph.compile()
 
@@ -400,6 +505,7 @@ def _build_initial_state(
         "ranked_offers": [],
         "review_summaries": [],
         "final_results": [],
+        "agent_reply": None,
         "trace": make_trace(request_id="pending"),
         "error": None,
     }
@@ -498,6 +604,8 @@ def stream_pipeline(
             # Chunk may contain one or multiple nodes (e.g. parallel evaluation_agent + review_agent)
             for node_name in chunk:
                 final_state = chunk[node_name]
+                if node_name == "synthesis_agent":
+                    continue
                 start_ms = _node_start_ms.get(node_name)
                 duration_ms = int(time.time() * 1000 - start_ms) if start_ms is not None else None
                 yield {
