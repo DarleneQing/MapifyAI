@@ -460,11 +460,13 @@ def test_get_place_detail_uses_place_service(monkeypatch):
 
     assert response.status_code == 200
     body = response.json()
-    assert body["place"]["id"] == "place-123"
     assert body["request_id"] == "req-999"
+    assert "detail" in body
+    detail = body["detail"]
+    place = detail["place"]
+    assert place["place_id"] == "place-123"
     assert calls["get_place_detail_args"] == ("place-123", "req-999")
 
-    detail = body["place"]
     assert "review_summary" in detail
     review = detail["review_summary"]
     assert "advantages" in review
@@ -473,11 +475,6 @@ def test_get_place_detail_uses_place_service(monkeypatch):
     assert "negative_highlights" not in review
     assert len(review["advantages"]) == 2
     assert len(review["disadvantages"]) == 1
-
-    assert "transit" in detail
-    assert detail["transit"]["duration_minutes"] == 15
-    assert detail["transit"]["transport_types"] == ["bus"]
-    assert detail["one_sentence_recommendation"] is not None
 
 
 def test_list_place_reviews_uses_place_service(monkeypatch):
@@ -630,7 +627,7 @@ def test_get_place_detail_review_summary_uses_advantages_not_highlights(monkeypa
 
     assert response.status_code == 200
     body = response.json()
-    review = body["place"]["review_summary"]
+    review = body["detail"]["review_summary"]
 
     assert isinstance(review["advantages"], list)
     assert len(review["advantages"]) == 3

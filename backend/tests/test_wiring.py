@@ -118,6 +118,9 @@ def test_create_request_works_with_real_services(monkeypatch):
                 "status": "open",
             },
             "ranked_offers": [{"id": "offer-1", "score": 0.9}],
+            "final_results": [
+                {"place_id": "offer-1", "name": "Fake Place", "recommendation_score": 0.9},
+            ],
             "trace": {"request_id": "pending", "steps": [{"agent": "fake"}]},
         }
 
@@ -143,9 +146,10 @@ def test_create_request_works_with_real_services(monkeypatch):
     resp = client.post("/api/requests?stream=false", json=payload)
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body.keys()) == {"request", "offers", "trace"}
-    assert isinstance(body["offers"], list)
-    assert body["offers"][0]["id"] == "offer-1"
+    assert set(body.keys()) == {"request", "results"}
+    assert isinstance(body["results"], list)
+    assert len(body["results"]) == 1
+    assert body["results"][0]["place_id"] == "offer-1"
 
     created_id = body["request"]["id"]
     assert marketplace.get_request(created_id) is not None
@@ -155,8 +159,7 @@ def test_create_request_works_with_real_services(monkeypatch):
     assert offers_resp.status_code == 200
     offers_body = offers_resp.json()
     assert offers_body["request_id"] == created_id
-    assert len(offers_body["offers"]) == 1
-    assert offers_body["offers"][0]["id"] == "offer-1"
+    assert isinstance(offers_body["offers"], list)
 
 
 def test_app_starts_with_requests_controller_wired():

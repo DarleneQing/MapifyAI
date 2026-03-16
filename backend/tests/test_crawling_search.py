@@ -184,28 +184,28 @@ class TestConvert12hRangeTo24h:
 class TestParseApifyHours:
     def test_full_week(self):
         hours = parse_apify_hours(APIFY_RESULT_OPEN["openingHours"])
-        assert hours["mon"] == "07:00-18:00"
-        assert hours["thu"] == "07:00-20:00"
-        assert hours["sat"] == "08:00-17:00"
-        assert hours["sun"] is None
+        assert hours.mon == "07:00-18:00"
+        assert hours.thu == "07:00-20:00"
+        assert hours.sat == "08:00-17:00"
+        assert hours.sun is None
 
     def test_closed_day_returns_none(self):
         hours = parse_apify_hours(APIFY_RESULT_CLOSED_SUNDAYS["openingHours"])
-        assert hours["sun"] is None
+        assert hours.sun is None
 
     def test_none_input_returns_all_none(self):
         hours = parse_apify_hours(None)
-        assert all(v is None for v in hours.values())
+        assert all(v is None for v in hours.model_dump().values())
 
     def test_empty_list_returns_all_none(self):
         hours = parse_apify_hours([])
-        assert all(v is None for v in hours.values())
+        assert all(v is None for v in hours.model_dump().values())
 
     def test_late_night_hours(self):
         hours = parse_apify_hours(APIFY_RESULT_LATE_NIGHT["openingHours"])
-        assert hours["mon"] == "17:00-00:00"
-        assert hours["fri"] == "17:00-02:00"
-        assert hours["sat"] == "15:00-02:00"
+        assert hours.mon == "17:00-00:00"
+        assert hours.fri == "17:00-02:00"
+        assert hours.sat == "15:00-02:00"
 
 
 # ---------------------------------------------------------------------------
