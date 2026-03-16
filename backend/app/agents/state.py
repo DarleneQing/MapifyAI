@@ -28,6 +28,9 @@ class PlannerState(TypedDict):
     # Populated by Output Ranking node (final PlaceSummary[] for API)
     final_results: list[dict]
 
+    # Populated by synthesis_agent (final conversational reply)
+    agent_reply: NotRequired[str | None]
+
     # Trace (US-13)
     trace: dict              # AgentTrace as dict
 

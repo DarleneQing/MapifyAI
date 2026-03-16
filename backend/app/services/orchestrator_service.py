@@ -53,6 +53,7 @@ class OrchestratorService:
             structured_request["id"] = request_id
 
         results = state.get("final_results") or []
+        agent_reply = str(state.get("agent_reply") or "").strip()
         trace = state.get("trace") or AgentTrace(request_id=request_id, steps=[]).model_dump()
         if isinstance(trace, dict):
             trace["request_id"] = request_id
@@ -60,6 +61,7 @@ class OrchestratorService:
         response = {
             "request": structured_request,
             "results": results,
+            "agent_reply": agent_reply,
         }
 
         if self._trace_service is not None and hasattr(self._trace_service, "store_trace"):

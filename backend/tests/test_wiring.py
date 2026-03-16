@@ -146,7 +146,7 @@ def test_create_request_works_with_real_services(monkeypatch):
     resp = client.post("/api/requests?stream=false", json=payload)
     assert resp.status_code == 200
     body = resp.json()
-    assert set(body.keys()) == {"request", "results"}
+    assert set(body.keys()) == {"request", "results", "agent_reply"}
     assert isinstance(body["results"], list)
     assert len(body["results"]) == 1
     assert body["results"][0]["place_id"] == "offer-1"

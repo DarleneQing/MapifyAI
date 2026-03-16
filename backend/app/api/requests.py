@@ -118,6 +118,7 @@ def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingRespon
                     if isinstance(structured_request, dict):
                         structured_request["id"] = request_id
                     results = final_state.get("final_results") or []
+                    agent_reply = str(final_state.get("agent_reply") or "").strip()
                     trace = final_state.get("trace") or AgentTrace(
                         request_id=request_id, steps=[]
                     ).model_dump()
@@ -127,7 +128,12 @@ def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingRespon
                         orchestrator_service._trace_service.store_trace(request_id, trace)
                     loop.call_soon_threadsafe(
                         queue.put_nowait,
-                        {"type": "result", "request": structured_request, "results": results},
+                        {
+                            "type": "result",
+                            "request": structured_request,
+                            "results": results,
+                            "agent_reply": agent_reply,
+                        },
                     )
                 else:
                     loop.call_soon_threadsafe(
