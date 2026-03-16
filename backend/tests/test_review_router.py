@@ -43,6 +43,7 @@ def test_simple_mode_uses_existing_simple_path_and_returns_normalized_contract()
             "place_id": "p-1",
             "advantages": ["Friendly staff"],
             "disadvantages": ["Long wait"],
+            "summary": "",
         }
     ]
 
@@ -67,6 +68,7 @@ def test_advanced_mode_returns_normalized_contract():
             "place_id": "p-advanced",
             "advantages": ["Clean environment", "Professional service"],
             "disadvantages": ["Small space"],
+            "summary": "",
         }
     ]
 
@@ -96,8 +98,32 @@ def test_fallback_mode_survives_advanced_failure_and_returns_valid_summary():
             "place_id": "p-fallback",
             "advantages": ["Good value"],
             "disadvantages": [],
+            "summary": "",
         }
     ]
+
+
+def test_advanced_mode_includes_rating_distribution_with_string_keys():
+    """Rating distribution from advanced pipeline is normalized with string keys '1'-'5'."""
+    providers = [_provider("p-dist", "https://maps.google.com/?cid=999")]
+
+    with patch(
+        "app.services.review_router.analyze_and_summarize_reviews",
+        return_value={
+            "orchestrator_payload": {
+                "strengths": [],
+                "weaknesses": [],
+                "rating_distribution": {1: 2, 2: 0, 3: 1, 4: 5, 5: 10},
+            }
+        },
+    ):
+        result = route_review_summaries(providers, review_mode="advanced")
+
+    assert len(result) == 1
+    assert result[0]["place_id"] == "p-dist"
+    assert result[0]["rating_distribution"] == {
+        "1": 2, "2": 0, "3": 1, "4": 5, "5": 10,
+    }
 
 
 def test_place_id_still_matches_provider_id_expected_by_orchestrator():

@@ -103,11 +103,14 @@ def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingRespon
                     else:
                         loop.call_soon_threadsafe(queue.put_nowait, event)
 
-                # Cache places in place_service
+                # Cache places with pipeline review summaries (simple/advanced/fallback)
                 if orchestrator_service.place_service is not None and final_state:
                     candidates = final_state.get("candidate_providers") or []
+                    review_summaries = final_state.get("review_summaries") or []
                     if candidates:
-                        orchestrator_service.place_service.cache_places(candidates)
+                        orchestrator_service.place_service.cache_places(
+                            candidates, review_summaries=review_summaries
+                        )
 
                 # Build the final result event
                 if final_state:
@@ -146,7 +149,15 @@ def _sse_response(orchestrator_service: Any, request_id: str) -> StreamingRespon
                 break
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/{request_id}")

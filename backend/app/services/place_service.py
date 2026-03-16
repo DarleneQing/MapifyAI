@@ -34,15 +34,40 @@ class PlaceService:
         self._marketplace = marketplace
         self._place_cache: dict[str, dict] = {}
 
-    def cache_places(self, providers: list[dict]) -> None:
+    def cache_places(
+        self,
+        providers: list[dict],
+        review_summaries: list[dict] | None = None,
+    ) -> None:
         """
         Populate the cache with provider data from crawling results.
-        Called by the orchestrator after the crawling agent completes.
+        Called by the orchestrator after the pipeline completes.
+        If review_summaries (from pipeline review_agent) is provided, each
+        cached place is enriched with review_summary so get_place_detail
+        returns pipeline advantages/disadvantages (e.g. advanced mode).
         """
+        review_map: dict[str, dict] = {}
+        if review_summaries:
+            for r in review_summaries:
+                pid = r.get("place_id")
+                if pid:
+                    review_map[pid] = {
+                        "advantages": r.get("advantages", []) or [],
+                        "disadvantages": r.get("disadvantages", []) or [],
+                        "star_reasons": r.get("star_reasons") or {},
+                        "summary": (r.get("summary") or "").strip(),
+                    }
+                    if r.get("rating_distribution") is not None:
+                        review_map[pid]["rating_distribution"] = r["rating_distribution"]
         for provider in providers:
             place_id = provider.get("id")
             if place_id:
-                self._place_cache[place_id] = provider
+                entry = dict(provider)
+                if place_id in review_map:
+                    entry["review_summary"] = review_map[place_id]
+                    if review_map[place_id].get("rating_distribution") is not None:
+                        entry["review_distribution"] = review_map[place_id]["rating_distribution"]
+                self._place_cache[place_id] = entry
                 logger.debug("Cached place: %s", place_id)
 
     def get_place_detail(
@@ -68,10 +93,29 @@ class PlaceService:
             }
 
         transit = self._compute_transit(place)
-        review_summary = self._generate_review_summary(place.get("reviews") or [])
+        # Use pipeline review summary (simple/advanced/fallback) when cached
+        cached_review = place.get("review_summary")
+        if (
+            isinstance(cached_review, dict)
+            and ("advantages" in cached_review or "disadvantages" in cached_review)
+        ):
+            review_summary = {
+                "advantages": cached_review.get("advantages", []) or [],
+                "disadvantages": cached_review.get("disadvantages", []) or [],
+                "star_reasons": cached_review.get("star_reasons") or {},
+                "summary": (cached_review.get("summary") or "").strip(),
+            }
+        else:
+            gen = self._generate_review_summary(place.get("reviews") or [])
+            review_summary = {**gen, "summary": gen.get("summary", "").strip()}
         recommendation = self._generate_one_sentence_recommendation(
             place, transit, review_summary
         )
+
+        # Use cached distribution, or compute from reviews when missing (e.g. seed data)
+        review_distribution = place.get("review_distribution")
+        if not review_distribution and place.get("reviews"):
+            review_distribution = self._distribution_from_reviews(place["reviews"])
 
         return {
             "id": place.get("id", place_id),
@@ -87,7 +131,7 @@ class PlaceService:
             "google_maps_url": place.get("google_maps_url"),
             "distance_km": place.get("distance_km"),
             "social_profiles": place.get("social_profiles", {}),
-            "review_distribution": place.get("review_distribution"),
+            "review_distribution": review_distribution,
             "popular_times": place.get("popular_times"),
             "images": place.get("images", []),
             "review_summary": review_summary,
@@ -214,6 +258,16 @@ class PlaceService:
         except Exception:
             logger.warning("Failed to compute transit for place", exc_info=True)
             return None
+
+    def _distribution_from_reviews(self, reviews: list[dict]) -> dict[str, int]:
+        """Build rating distribution (keys '1'-'5') from a list of reviews with stars/rating."""
+        dist: dict[str, int] = {"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+        for r in reviews:
+            star = r.get("stars") or r.get("rating")
+            if star is not None:
+                key = str(int(star)) if 1 <= int(star) <= 5 else str(max(1, min(5, int(star))))
+                dist[key] = dist.get(key, 0) + 1
+        return dist
 
     def _generate_review_summary(self, reviews: list[dict]) -> dict[str, Any]:
         """

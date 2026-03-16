@@ -17,18 +17,21 @@ export interface UserQueuePosition {
   joinedAt: number;
 }
 
-// Mock queue data for places
+// Mock queue data for places (IDs from seed zurich_providers.json)
 const MOCK_QUEUE_DATA: Record<string, { level: QueueLevel; waitMinutes: number; peopleAhead: number }> = {
-  p1: { level: "low", waitMinutes: 0, peopleAhead: 1 },
-  p2: { level: "medium", waitMinutes: 10, peopleAhead: 4 },
-  p3: { level: "busy", waitMinutes: 25, peopleAhead: 9 },
-  p4: { level: "low", waitMinutes: 2, peopleAhead: 0 },
-  p5: { level: "medium", waitMinutes: 15, peopleAhead: 6 },
-  p6: { level: "low", waitMinutes: 0, peopleAhead: 0 },
-  p7: { level: "busy", waitMinutes: 20, peopleAhead: 7 },
-  p8: { level: "low", waitMinutes: 3, peopleAhead: 1 },
-  p9: { level: "medium", waitMinutes: 12, peopleAhead: 5 },
-  p10: { level: "busy", waitMinutes: 30, peopleAhead: 11 },
+  p001: { level: "low", waitMinutes: 2, peopleAhead: 1 },
+  p002: { level: "medium", waitMinutes: 10, peopleAhead: 4 },
+  p003: { level: "busy", waitMinutes: 25, peopleAhead: 9 },
+  p004: { level: "low", waitMinutes: 0, peopleAhead: 0 },
+  p005: { level: "medium", waitMinutes: 15, peopleAhead: 6 },
+  p006: { level: "busy", waitMinutes: 20, peopleAhead: 7 },
+  p007: { level: "low", waitMinutes: 3, peopleAhead: 1 },
+  p008: { level: "medium", waitMinutes: 12, peopleAhead: 5 },
+  p009: { level: "busy", waitMinutes: 30, peopleAhead: 11 },
+  p010: { level: "low", waitMinutes: 0, peopleAhead: 0 },
+  // New queues near Stadelhofen area (massage category)
+  p081: { level: "medium", waitMinutes: 18, peopleAhead: 7 },
+  p082: { level: "busy", waitMinutes: 28, peopleAhead: 10 },
 };
 
 export function useQueueStatus() {

@@ -10,6 +10,7 @@ import QueueDrawer from "@/components/place/QueueDrawer";
 import { PLACE_VIBES } from "@/components/explore/VibeFilter";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
 import { useSavedPlaces, type SavedPlace } from "@/contexts/SavedPlacesContext";
+import { getDealForPlaceId, getSeedIdByPlaceName } from "@/data/providers";
 import type { FlashDeal } from "@/types";
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -67,7 +68,13 @@ export default function Saved() {
         )}
         {savedPlaces.map((place, idx) => {
           const status = statusMap[place.status];
-          const queueInfo = getQueueInfo(place.id);
+          const seedId = getSeedIdByPlaceName(place.name);
+          const liveQueue = getQueueInfo(place.id) ?? (seedId ? getQueueInfo(seedId) : null);
+          const queueInfo = liveQueue ?? (place.queueSnapshot
+            ? { placeId: place.id, ...place.queueSnapshot }
+            : null);
+          const deal = place.flashDeal ?? getDealForPlaceId(place.id) ?? (seedId ? getDealForPlaceId(seedId) : undefined);
+          const effectivePlaceId = seedId ?? place.id;
           return (
             <motion.div
               key={place.id}
@@ -75,7 +82,7 @@ export default function Saved() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.04 }}
               className="mx-4 mb-1 cursor-pointer"
-              onClick={() => navigate(`/place/${place.id}`)}
+              onClick={() => navigate(`/place/${effectivePlaceId}`)}
             >
               <div className="rounded-xl p-3 hover:bg-card/60 transition-all">
                 <div className="flex items-start gap-3">
@@ -89,23 +96,32 @@ export default function Saved() {
                         <Bookmark className="w-3.5 h-3.5 text-primary fill-primary flex-shrink-0 mt-0.5" />
                       </button>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1 flex-wrap">
                       <span className="flex items-center gap-0.5">
                         <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                         {place.rating.toFixed(1)}
                       </span>
                       <span>·</span>
                       <span className={`font-medium ${status.color}`}>{status.label}</span>
-                      {queueInfo && place.status !== "closed" && (
+                      {deal && (
                         <>
                           <span>·</span>
+                          <span className="font-medium text-primary">{deal.discount}</span>
+                        </>
+                      )}
+                      {queueInfo && (
+                        <>
+                          <span>·</span>
+                          <span className="font-medium text-muted-foreground">
+                            {queueInfo.peopleAhead} in queue · ~{queueInfo.waitMinutes} min
+                          </span>
                           <QueueIndicator
                             level={queueInfo.level}
                             waitMinutes={queueInfo.waitMinutes}
                             compact
                             onClick={(e) => {
                               e.stopPropagation();
-                              setQueueTarget({ id: place.id, name: place.name });
+                              setQueueTarget({ id: effectivePlaceId, name: place.name });
                             }}
                           />
                         </>
@@ -113,7 +129,7 @@ export default function Saved() {
                     </div>
                     {/* Vibe tags + reason tags */}
                     <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                      {(PLACE_VIBES[place.id] || []).map((v) => (
+                      {(PLACE_VIBES[effectivePlaceId] || PLACE_VIBES[place.id] || []).map((v) => (
                         <span key={v} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-primary/8 text-primary border border-primary/15">
                           {v}
                         </span>
@@ -124,9 +140,9 @@ export default function Saved() {
                         </span>
                       )}
                     </div>
-                    {/* Flash Deal */}
-                    {place.flashDeal && (
-                      <FlashDealBanner deal={place.flashDeal} variant="compact" />
+                    {/* Flash Deal — from stored place or lookup by place id (e.g. Café Elena p019) */}
+                    {deal && (
+                      <FlashDealBanner deal={deal as FlashDeal} variant="compact" />
                     )}
 
                     <div className="flex items-center gap-2 mt-2">
@@ -140,11 +156,11 @@ export default function Saved() {
                         <MessageCircle className="w-3 h-3" />
                         Chat
                       </button>
-                      {queueInfo && place.status !== "closed" && (
+                      {queueInfo && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setQueueTarget({ id: place.id, name: place.name });
+                            setQueueTarget({ id: effectivePlaceId, name: place.name });
                           }}
                           className="flex items-center gap-1 px-3 py-1 text-[11px] font-semibold rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
                         >

@@ -1,43 +1,21 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, MapPin, Star, Bookmark, MessageCircle, Users } from "lucide-react";
+import { MapPin, Star, Bookmark, MessageCircle, Users, Search } from "lucide-react";
 import BottomTabBar from "@/components/layout/BottomTabBar";
 import ChatDrawer from "@/components/chat/ChatDrawer";
 import FlashDealBanner from "@/components/place/FlashDealBanner";
 import QueueIndicator from "@/components/place/QueueIndicator";
 import QueueDrawer from "@/components/place/QueueDrawer";
-import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
+import { placeMatchesVibes, PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
 import NotificationCenter from "@/components/layout/NotificationCenter";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
 import { useNotifications } from "@/hooks/useNotifications";
-import type { FlashDeal } from "@/types";
+import { getExplorePlaces, getMerchantIdsWithDiscount, getDealForPlaceId } from "@/data/providers";
 
-const CATEGORIES = [
-  { key: "all", label: "All", icon: "🔥" },
-  { key: "barber", label: "Barber", icon: "✂️" },
-  { key: "dining", label: "Dining", icon: "🍽" },
-  { key: "coffee", label: "Coffee", icon: "☕" },
-  { key: "car_wash", label: "Car Wash", icon: "🚗" },
-  { key: "hotel", label: "Hotels", icon: "🏨" },
-];
-
-const ALL_PLACES: {
-  id: string; name: string; category: string; address: string; rating: number;
-  ratingCount: number; status: "open_now" | "closing_soon" | "closed";
-  tags: string[]; priceLevel: string; flashDeal?: FlashDeal;
-}[] = [
-  { id: "p1", name: "The Ground Brew", category: "coffee", address: "12 Market Street", rating: 4.9, ratingCount: 2341, status: "open_now", tags: ["Minimalist design", "Strong espresso"], priceLevel: "$$", flashDeal: { title: "Espresso Happy Hour", discount: "-40%", expires_at: new Date(Date.now() + 3600000).toISOString(), remaining: 12 } },
-  { id: "p2", name: "Komorebi Tables", category: "dining", address: "88 Oak Avenue", rating: 4.7, ratingCount: 1890, status: "closing_soon", tags: ["High-speed WiFi", "Quiet environment"], priceLevel: "$$" },
-  { id: "p3", name: "Velvet Crumb", category: "coffee", address: "45 Elm Street", rating: 4.8, ratingCount: 3102, status: "open_now", tags: ["Artisanal sourdough", "Trending"], priceLevel: "$", flashDeal: { title: "Buy 2 Get 1 Free", discount: "3 for 2", expires_at: new Date(Date.now() + 1800000).toISOString(), remaining: 5 } },
-  { id: "p4", name: "Origin Roast", category: "coffee", address: "200 Pine Road", rating: 4.6, ratingCount: 876, status: "open_now", tags: ["Near you", "Single origin"], priceLevel: "$" },
-  { id: "p5", name: "The Sage Bistro", category: "dining", address: "Gastronomy Park, Central", rating: 4.8, ratingCount: 212, status: "open_now", tags: ["Farm-to-table", "Date night"], priceLevel: "$$$", flashDeal: { title: "Dinner Set Menu", discount: "-30%", expires_at: new Date(Date.now() + 7200000).toISOString(), remaining: 8 } },
-  { id: "p6", name: "Blue Bottle Coffee", category: "coffee", address: "299 Copper Lane", rating: 4.3, ratingCount: 654, status: "closed", tags: ["Japanese minimal", "Pour-over"], priceLevel: "$$$" },
-  { id: "p7", name: "Sharp Edge Barber", category: "barber", address: "22 Main St", rating: 4.7, ratingCount: 430, status: "open_now", tags: ["Walk-in welcome", "Classic cuts"], priceLevel: "$$" },
-  { id: "p8", name: "The Gentleman's Cut", category: "barber", address: "55 Oak Blvd", rating: 4.5, ratingCount: 318, status: "open_now", tags: ["Beard grooming", "Hot towel"], priceLevel: "$$" },
-  { id: "p9", name: "Fresh Auto Wash", category: "car_wash", address: "100 River Drive", rating: 4.2, ratingCount: 560, status: "open_now", tags: ["Express wash", "Eco-friendly"], priceLevel: "$", flashDeal: { title: "Premium Wash", discount: "-50%", expires_at: new Date(Date.now() + 2400000).toISOString(), remaining: 3 } },
-  { id: "p10", name: "Grand View Hotel", category: "hotel", address: "1 Skyline Ave", rating: 4.9, ratingCount: 1205, status: "open_now", tags: ["Rooftop pool", "City view"], priceLevel: "$$$" },
-];
+// Real Zurich providers (crawled data from backend seed)
+const ALL_PLACES = getExplorePlaces();
+const MERCHANT_IDS_WITH_DISCOUNT = getMerchantIdsWithDiscount();
 
 const statusMap: Record<string, { label: string; color: string }> = {
   open_now: { label: "Open", color: "text-emerald-600" },
@@ -56,6 +34,7 @@ const placeholderColors = [
 
 export default function Explore() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [chatTarget, setChatTarget] = useState<{ name: string; category: string } | null>(null);
@@ -64,14 +43,28 @@ export default function Explore() {
   const { getQueueInfo, userQueue, joinQueue, leaveQueue } = useQueueStatus();
   const { notifications, unreadCount, latestPush, markRead, markAllRead, dismissToast } = useNotifications();
 
+  // Sync keyword from URL (e.g. when navigating from home with AI search off)
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q != null && q !== "") setSearchQuery(q);
+  }, [searchParams]);
+
   const handleVibeToggle = (vibe: VibeTag) => {
     setActiveVibes((prev) => prev.includes(vibe) ? prev.filter((v) => v !== vibe) : [...prev, vibe]);
   };
 
-  const filtered = ALL_PLACES.filter((p) => {
+  const hasSearch = searchQuery.trim().length > 0;
+  const candidatePlaces = hasSearch
+    ? ALL_PLACES
+    : ALL_PLACES.filter((p) => MERCHANT_IDS_WITH_DISCOUNT.has(p.id)).map((p) => {
+        const deal = getDealForPlaceId(p.id);
+        return deal ? { ...p, flashDeal: deal } : p;
+      });
+
+  const filtered = candidatePlaces.filter((p) => {
     const matchCategory = activeCategory === "all" || p.category === activeCategory;
     const matchSearch = !searchQuery.trim() || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchVibe = activeVibes.length === 0 || activeVibes.some((v) => (PLACE_VIBES[p.id] || []).includes(v));
+    const matchVibe = placeMatchesVibes(p.id, activeVibes);
     return matchCategory && matchSearch && matchVibe;
   });
 
@@ -118,49 +111,10 @@ export default function Explore() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex-shrink-0 px-4 pb-3">
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-muted/50 border border-border/40">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search places, services..."
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
-          />
-        </div>
-      </div>
-
-      {/* Category chips */}
-      <div className="flex-shrink-0 px-4 pb-3">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {CATEGORIES.map((cat) => (
-            <motion.button
-              key={cat.key}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setActiveCategory(cat.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                activeCategory === cat.key
-                  ? "bg-foreground text-background"
-                  : "bg-muted/60 text-muted-foreground"
-              }`}
-            >
-              <span>{cat.icon}</span>
-              {cat.label}
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vibe filter */}
-      <div className="flex-shrink-0 px-4 pb-3">
-        <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} />
-      </div>
-
       {/* Results header */}
       <div className="flex-shrink-0 px-4 pb-2">
         <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">
-          {filtered.length} places found
+          {hasSearch ? `${filtered.length} places found` : `${filtered.length} stores with discounts`}
         </p>
       </div>
 

@@ -346,9 +346,6 @@ export default function Profile() {
                     {merchantPrefs.queueEnabled && (
                       <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">👥 Queue</span>
                     )}
-                    {merchantPrefs.biddingEnabled && (
-                      <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium">🏷 Bidding</span>
-                    )}
                   </div>
                 </div>
               </div>

@@ -1,0 +1,119 @@
+"""
+Crawl haircut, dentist, massage near Zurich HB and PREPEND to existing seed.
+
+Does not replace existing data. New entries get ids at the start (p001, p002, ...)
+and existing entries are renumbered to follow. Run from backend directory:
+
+  python -m scripts.crawl_zurich_seed_append
+
+Reads backend/seed/zurich_providers.json, crawls only the append categories,
+dedupes by placeId, then writes: [new_entries] + [existing_entries renumbered].
+"""
+import json
+import sys
+from pathlib import Path
+
+backend = Path(__file__).resolve().parent.parent
+if str(backend) not in sys.path:
+    sys.path.insert(0, str(backend))
+
+from dotenv import load_dotenv
+load_dotenv(backend / ".env")
+
+from app.config import APIFY_API_TOKEN
+from app.services.apify_search import search_places
+from app.agents.crawling_search import transform_apify_result
+
+ZURICH_LAT = 47.3779
+ZURICH_LNG = 8.5402
+RADIUS_KM = 2.0
+MAX_PER_SEARCH = 10
+
+# Only these categories; results are prepended to existing seed
+APPEND_SEARCHES = [
+    ("hair salon", "haircut"),
+    ("dentist", "dentist"),
+    ("massage", "massage"),
+]
+
+SEED_PATH = backend / "seed" / "zurich_providers.json"
+
+
+def provider_to_seed_entry(p: dict, id_str: str) -> dict:
+    return {
+        "id": id_str,
+        "name": p["name"],
+        "category": p["category"],
+        "location": p["location"],
+        "address": p.get("address") or "",
+        "rating": p["rating"],
+        "review_count": p["review_count"],
+        "price_range": p.get("price_range") or "",
+        "opening_hours": p["opening_hours"],
+        "website_url": p.get("website_url"),
+        "google_maps_url": p.get("google_maps_url") or "",
+        "images": p.get("images") or [],
+        "reviews": p.get("reviews") or [],
+    }
+
+
+def main() -> None:
+    if not APIFY_API_TOKEN:
+        raise SystemExit("APIFY_API_TOKEN is not set. Add it to backend/.env and run again.")
+
+    # Load existing seed (may be empty)
+    existing = []
+    if SEED_PATH.exists():
+        existing = json.loads(SEED_PATH.read_text(encoding="utf-8"))
+        print(f"Loaded {len(existing)} existing providers from seed.")
+
+    # Dedupe new crawl against each other (by Apify placeId) and against existing (by name+location)
+    seen_ids = set()
+    existing_by_name_loc = set()
+    for e in existing:
+        loc = e.get("location") or {}
+        existing_by_name_loc.add((e.get("name"), loc.get("lat"), loc.get("lng")))
+
+    new_providers = []
+    for term, category in APPEND_SEARCHES:
+        print(f"Crawling: {term!r} -> category {category!r} ...")
+        raw = search_places(
+            term=term,
+            lat=ZURICH_LAT,
+            lng=ZURICH_LNG,
+            radius_km=RADIUS_KM,
+            max_results=MAX_PER_SEARCH,
+        )
+        for r in raw:
+            pid = r.get("placeId") or r.get("cid") or (r.get("title") or r.get("name") or "")
+            if pid in seen_ids:
+                continue
+            p = transform_apify_result(r, ZURICH_LAT, ZURICH_LNG)
+            p["category"] = category
+            loc = p.get("location") or {}
+            key = (p.get("name"), loc.get("lat"), loc.get("lng"))
+            if key in existing_by_name_loc:
+                continue
+            seen_ids.add(pid)
+            existing_by_name_loc.add(key)
+            new_providers.append(p)
+        print(f"  -> {len(raw)} results, new unique so far: {len(new_providers)}")
+
+    # New entries at top with ids continuing after existing (p057, p058, ...)
+    # Existing entries keep their ids and go after
+    start_id = len(existing) + 1
+    seed_data = []
+    for i, p in enumerate(new_providers, start=start_id):
+        seed_data.append(provider_to_seed_entry(p, f"p{i:03d}"))
+    for e in existing:
+        seed_data.append(e)
+
+    SEED_PATH.write_text(
+        json.dumps(seed_data, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    print(f"Prepended {len(new_providers)} new providers (ids p{start_id:03d}–p{start_id + len(new_providers) - 1:03d}). Total: {len(seed_data)}. Wrote to {SEED_PATH}")
+
+
+if __name__ == "__main__":
+    main()

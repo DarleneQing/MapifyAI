@@ -1,19 +1,16 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, MoreHorizontal, Search } from "lucide-react";
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import PlaceCard from "@/components/place/PlaceCard";
 import AgentPipeline from "@/components/chat/AgentPipeline";
 import BottomTabBar from "@/components/layout/BottomTabBar";
-import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
 import { useSearchStream, type PipelineStage } from "@/hooks/useSearchStream";
 import { useLang } from "@/i18n/LanguageContext";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useDeviceLocation } from "@/hooks/useDeviceLocation";
 import { useChatContext } from "@/contexts/ChatContext";
 import type { PlaceSummary } from "@/types";
-
-const FILTER_CHIPS = ["For You", "Breakfast", "Quiet Spots", "Outdoor"];
 
 interface LocationState {
   query?: string;
@@ -37,9 +34,7 @@ export default function Recommendations() {
   // Priority: navigation state > context > URL params
   const query = passedQuery || contextQuery || urlQuery;
   
-  const [activeFilter, setActiveFilter] = useState("For You");
   const [activePlace, setActivePlace] = useState<string | null>(null);
-  const [activeVibes, setActiveVibes] = useState<VibeTag[]>([]);
   const { preferences } = usePreferences();
   const { results: apiResults, isLoading, isStreaming, pipelineStage: apiPipelineStage, startSearch } = useSearchStream(preferences);
   const { t } = useLang();
@@ -72,17 +67,6 @@ export default function Recommendations() {
     }
   }, [hasPersistedResults, query, location, startSearch]);
 
-  const handleVibeToggle = (vibe: VibeTag) => {
-    setActiveVibes((prev) => prev.includes(vibe) ? prev.filter((v) => v !== vibe) : [...prev, vibe]);
-  };
-
-  const filteredResults = useMemo(() => {
-    if (activeVibes.length === 0) return results;
-    return results.filter((place) =>
-      activeVibes.some((v) => (PLACE_VIBES[place.place_id] || []).includes(v))
-    );
-  }, [results, activeVibes]);
-
   return (
     <div className="h-[100dvh] flex flex-col bg-background">
       {/* Header */}
@@ -102,45 +86,10 @@ export default function Recommendations() {
         </div>
       </div>
 
-      {/* Search query display */}
-      <div className="flex-shrink-0 px-4 pb-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground truncate">
-            {query ? `"${query}"` : "No search query provided"}
-          </span>
-        </div>
-      </div>
-
-      {/* Filter chips */}
-      <div className="flex-shrink-0 px-4 pb-2">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
-          {FILTER_CHIPS.map((chip) => (
-            <motion.button
-              key={chip}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setActiveFilter(chip)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
-                activeFilter === chip
-                  ? "bg-foreground text-background"
-                  : "bg-muted/60 text-muted-foreground"
-              }`}
-            >
-              {chip}
-            </motion.button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vibe filter */}
-      <div className="flex-shrink-0 px-4 pb-3">
-        <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} compact />
-      </div>
-
       {/* Results header */}
       <div className="flex-shrink-0 px-4 pb-2">
         <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">
-          {t.resultsTitle}{activeVibes.length > 0 ? ` · ${filteredResults.length} matched` : ""}
+          {t.resultsTitle}
         </p>
       </div>
 
@@ -159,7 +108,7 @@ export default function Recommendations() {
             className="mx-4 mb-3 px-4 py-3 rounded-xl bg-primary/5 border border-primary/10"
           >
             <p className="text-sm text-foreground">
-              ✨ Based on your preferences, here are our <span className="font-semibold text-primary">{filteredResults.length} recommendations</span> for "{query}".
+              ✨ Based on your preferences, here are our <span className="font-semibold text-primary">{results.length} recommendations</span> for "{query}".
             </p>
           </motion.div>
         )}
@@ -181,7 +130,7 @@ export default function Recommendations() {
           ))
         ) : (
           <AnimatePresence>
-            {filteredResults.map((place, idx) => (
+            {results.map((place, idx) => (
               <motion.div
                 key={place.place_id}
                 initial={{ opacity: 0, y: 16 }}
@@ -200,7 +149,7 @@ export default function Recommendations() {
           </AnimatePresence>
         )}
 
-        {!isLoading && filteredResults.length === 0 && activeVibes.length > 0 && (
+        {!isLoading && results.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <p className="text-sm font-medium">No matches for selected vibes</p>
             <p className="text-xs mt-1">Try removing some vibe filters</p>

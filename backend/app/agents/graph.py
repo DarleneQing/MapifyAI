@@ -272,11 +272,16 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
         prefs = None
 
     ranked_with_reasons = attach_explanations(state["ranked_offers"][:10], prefs)
+    review_map = {
+        r["place_id"]: (r.get("summary") or "").strip()
+        for r in state.get("review_summaries", [])
+    }
 
     results = []
     for p in ranked_with_reasons:
+        place_id = p.get("id", "")
         results.append({
-            "place_id": p.get("id", ""),
+            "place_id": place_id,
             "name": p.get("name", ""),
             "address": p.get("address", ""),
             "distance_km": p.get("distance_km"),
@@ -288,6 +293,7 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
             "transit": _format_transit(p.get("transit_info")),
             "reason_tags": p.get("reasons", []),
             "one_sentence_recommendation": p.get("one_sentence_recommendation", ""),
+            "review_summary_text": review_map.get(place_id, ""),
         })
 
     state["final_results"] = results
@@ -483,17 +489,18 @@ def stream_pipeline(
                 yield from _start_buffer
                 _start_buffer.clear()
 
-            node_name = next(iter(chunk))
-            final_state = chunk[node_name]
-            start_ms = _node_start_ms.get(node_name)
-            duration_ms = int(time.time() * 1000 - start_ms) if start_ms is not None else None
-            yield {
-                "type": "progress",
-                "status": "done",
-                "agent": node_name,
-                "duration_ms": duration_ms,
-                "message": AGENT_DONE_MESSAGES.get(node_name, f"{node_name} completed"),
-            }
+            # Chunk may contain one or multiple nodes (e.g. parallel evaluation_agent + review_agent)
+            for node_name in chunk:
+                final_state = chunk[node_name]
+                start_ms = _node_start_ms.get(node_name)
+                duration_ms = int(time.time() * 1000 - start_ms) if start_ms is not None else None
+                yield {
+                    "type": "progress",
+                    "status": "done",
+                    "agent": node_name,
+                    "duration_ms": duration_ms,
+                    "message": AGENT_DONE_MESSAGES.get(node_name, f"{node_name} completed"),
+                }
     finally:
         _node_callback.fn = None
 

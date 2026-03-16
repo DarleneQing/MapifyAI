@@ -40,10 +40,13 @@ class OrchestratorService:
             preferences,
         )
 
-        # Cache candidate providers in place_service for /api/places lookups
+        # Cache places with pipeline review summaries for /api/places detail
         candidate_providers = state.get("candidate_providers") or []
+        review_summaries = state.get("review_summaries") or []
         if self.place_service is not None and candidate_providers:
-            self.place_service.cache_places(candidate_providers)
+            self.place_service.cache_places(
+                candidate_providers, review_summaries=review_summaries
+            )
 
         structured_request = state.get("structured_request") or request
         if isinstance(structured_request, dict):

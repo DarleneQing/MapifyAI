@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, X, MapPin, Star, ArrowRight, Mic, ChevronUp, Bookmark, MessageCircle, LocateFixed, Users } from "lucide-react";
+import { Search, X, MapPin, Star, ArrowRight, Mic, ChevronUp, Bookmark, MessageCircle, LocateFixed, Users, Sparkles } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import BottomTabBar from "@/components/layout/BottomTabBar";
@@ -10,28 +10,24 @@ import ChatDrawer from "@/components/chat/ChatDrawer";
 import QueueDrawer from "@/components/place/QueueDrawer";
 import QueueIndicator from "@/components/place/QueueIndicator";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
-import VibeFilter, { PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
+import VibeFilter, { placeMatchesVibes, PLACE_VIBES, type VibeTag } from "@/components/explore/VibeFilter";
 import NotificationCenter from "@/components/layout/NotificationCenter";
+import { Switch } from "@/components/ui/switch";
 import { useNotifications } from "@/hooks/useNotifications";
+import { getIndexMerchants, getMerchantIdsWithDiscount, getDealForPlaceId } from "@/data/providers";
 
-// ── Merchant mock data with real-ish Zurich coordinates ──
-const MOCK_MERCHANTS = [
-  { id: "p1", name: "The Ground Brew", category: "Coffee", rating: 4.9, hasBidding: true, lat: 47.3785, lng: 8.5405, address: "12 Market Street", status: "open_now" as const, tags: ["Minimalist design", "Strong espresso"] },
-  { id: "p2", name: "Komorebi Tables", category: "Café", rating: 4.7, hasBidding: false, lat: 47.3755, lng: 8.5445, address: "88 Oak Avenue", status: "closing_soon" as const, tags: ["High-speed WiFi", "Quiet environment"] },
-  { id: "p3", name: "Velvet Crumb", category: "Bakery", rating: 4.8, hasBidding: true, lat: 47.3800, lng: 8.5350, address: "45 Elm Street", status: "open_now" as const, tags: ["Artisanal sourdough", "Trending"] },
-  { id: "p4", name: "Origin Roast", category: "Coffee", rating: 4.6, hasBidding: false, lat: 47.3745, lng: 8.5470, address: "200 Pine Road", status: "open_now" as const, tags: ["Near you", "Single origin"] },
-  { id: "p5", name: "The Sage Bistro", category: "Dining", rating: 4.8, hasBidding: true, lat: 47.3730, lng: 8.5330, address: "Gastronomy Park", status: "open_now" as const, tags: ["Farm-to-table", "Date night"] },
-  { id: "p6", name: "Blue Bottle Coffee", category: "Coffee", rating: 4.3, hasBidding: false, lat: 47.3820, lng: 8.5490, address: "299 Copper Lane", status: "closed" as const, tags: ["Japanese minimal", "Pour-over"] },
-  { id: "p7", name: "Scissors & Style", category: "Barber", rating: 4.5, hasBidding: true, lat: 47.3760, lng: 8.5380, address: "15 Main Street", status: "open_now" as const, tags: ["Walk-in welcome", "Classic cuts"] },
-  { id: "p8", name: "Fresh Auto Wash", category: "Car Wash", rating: 4.2, hasBidding: true, lat: 47.3810, lng: 8.5420, address: "Highway 12", status: "open_now" as const, tags: ["Express wash", "Eco-friendly"] },
-];
+// Real Zurich providers (crawled data from backend seed)
+const MERCHANTS = getIndexMerchants();
+const MERCHANT_IDS_WITH_DISCOUNT = getMerchantIdsWithDiscount();
 
 const CATEGORIES = [
-  { label: "Barber", icon: "✂️", category: "barber" },
-  { label: "Dining", icon: "🍽", category: "dining" },
-  { label: "Coffee", icon: "☕", category: "coffee" },
-  { label: "Car Wash", icon: "🚗", category: "car_wash" },
-  { label: "Hotels", icon: "🏨", category: "hotels" },
+  { label: "Restaurant", icon: "🍽", category: "restaurant" },
+  { label: "Cafe", icon: "☕", category: "cafe" },
+  { label: "Bar", icon: "🍸", category: "bar" },
+  { label: "Haircut", icon: "✂️", category: "haircut" },
+  { label: "Massage", icon: "💆", category: "massage" },
+  { label: "Dentist", icon: "🦷", category: "dentist" },
+  { label: "Repair", icon: "🔧", category: "repair" },
 ];
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -50,7 +46,7 @@ const placeholderColors = [
 ];
 
 // ── Custom Leaflet marker icons ──
-function createPinIcon(name: string, hasBidding: boolean, isSelected: boolean, delay: number = 0) {
+function createPinIcon(name: string, isSelected: boolean, delay: number = 0) {
   const bg = isSelected ? "#d6336c" : "#ffffff";
   const text = isSelected ? "#fff" : "#333";
   const tagColor = isSelected ? "#fff" : "#999";
@@ -109,6 +105,8 @@ const Index = () => {
   const { getQueueInfo, userQueue, joinQueue, leaveQueue } = useQueueStatus();
   const { notifications, unreadCount, latestPush, markRead, markAllRead, dismissToast } = useNotifications();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [aiSearchEnabled, setAiSearchEnabled] = useState(true);
+  const [localSearchFilter, setLocalSearchFilter] = useState("");
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -123,22 +121,42 @@ const Index = () => {
   };
 
   const filteredMerchants = useMemo(() => {
-    return MOCK_MERCHANTS.filter((m) => {
-      const matchCategory = !activeCategory || m.category.toLowerCase() === activeCategory;
-      const matchVibe = activeVibes.length === 0 || activeVibes.some((v) => (PLACE_VIBES[m.id] || []).includes(v));
-      return matchCategory && matchVibe;
+    return MERCHANTS.filter((m) => {
+      const hasDiscount = MERCHANT_IDS_WITH_DISCOUNT.has(m.id);
+      const matchCategory = !activeCategory || m.category === activeCategory;
+      const matchVibe = placeMatchesVibes(m.id, activeVibes);
+      const matchSearch =
+        !localSearchFilter ||
+        [m.name, m.category, ...m.tags].some((s) =>
+          s.toLowerCase().includes(localSearchFilter.toLowerCase())
+        );
+      // When a category chip is selected: show related stores in that category (ignore discount).
+      // When no category: show only places with discounts (original "places nearby" behavior).
+      if (activeCategory) {
+        return matchCategory && matchVibe && matchSearch;
+      }
+      return hasDiscount && matchVibe && matchSearch;
     });
-  }, [activeCategory, activeVibes]);
+  }, [activeCategory, activeVibes, localSearchFilter]);
 
-  const selectedMerchant = MOCK_MERCHANTS.find((m) => m.id === selectedPin);
+  const selectedMerchant = MERCHANTS.find((m) => m.id === selectedPin);
 
   const handleSearch = useCallback(
     (q: string) => {
-      if (q.trim()) {
-        navigate(`/chat?q=${encodeURIComponent(q.trim())}`);
+      const trimmed = q.trim();
+      if (aiSearchEnabled) {
+        if (!trimmed) return;
+        const combined = [...activeVibes, trimmed].filter(Boolean).join(" ");
+        navigate(`/chat?q=${encodeURIComponent(combined)}`);
+      } else {
+        if (!trimmed) {
+          setLocalSearchFilter("");
+          return;
+        }
+        navigate(`/explore?q=${encodeURIComponent(trimmed)}`);
       }
     },
-    [navigate]
+    [navigate, activeVibes, aiSearchEnabled]
   );
 
   const handlePinClick = useCallback((id: string) => {
@@ -205,7 +223,6 @@ const Index = () => {
       const marker = L.marker([merchant.lat, merchant.lng], {
         icon: createPinIcon(
           merchant.name.split(" ").slice(0, 2).join(" "),
-          merchant.hasBidding,
           false, // Start unselected, selection handled separately
           idx * 80 // stagger delay per pin
         ),
@@ -213,7 +230,6 @@ const Index = () => {
 
       (marker as any)._merchantId = merchant.id;
       (marker as any)._merchantName = merchant.name;
-      (marker as any)._merchantHasBidding = merchant.hasBidding;
       marker.on("click", () => handlePinClick(merchant.id));
       markersRef.current.push(marker);
     });
@@ -224,12 +240,10 @@ const Index = () => {
     markersRef.current.forEach((marker) => {
       const id = (marker as any)._merchantId;
       const name = (marker as any)._merchantName;
-      const hasBidding = (marker as any)._merchantHasBidding;
       const isSelected = selectedPin === id;
       marker.setIcon(
         createPinIcon(
           name.split(" ").slice(0, 2).join(" "),
-          hasBidding,
           isSelected,
           0 // No animation delay for selection changes
         )
@@ -255,7 +269,7 @@ const Index = () => {
       {!notifOpen && (
         <button
           onClick={handleRecenter}
-          className="absolute right-3 bottom-[200px] z-[600] w-11 h-11 rounded-full bg-card border border-border/30 shadow-md flex items-center justify-center active:scale-90 transition-transform"
+          className="absolute right-3 bottom-[290px] z-[600] w-11 h-11 rounded-full bg-card border border-border/30 shadow-md flex items-center justify-center active:scale-90 transition-transform"
           title="Back to my location"
         >
           <LocateFixed className="w-5 h-5 text-primary" />
@@ -310,11 +324,6 @@ const Index = () => {
             </button>
           ))}
         </div>
-
-        {/* Vibe filter */}
-        <div className="mt-1.5">
-          <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} compact />
-        </div>
       </div>
 
       {/* ── Selected Pin Preview Card ── */}
@@ -357,6 +366,15 @@ const Index = () => {
                       );
                     })()}
                   </div>
+                  {(() => {
+                    const deal = getDealForPlaceId(selectedMerchant.id);
+                    if (!deal) return null;
+                    return (
+                      <div className="text-[10px] text-primary font-medium mb-1.5">
+                        {deal.title} · {deal.discount}
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={(e) => { e.stopPropagation(); navigate(`/place/${selectedMerchant.id}`); }}
@@ -390,16 +408,41 @@ const Index = () => {
       {/* ── Bottom: Greeting + Search ── */}
       {!sheetOpen && !selectedMerchant && !notifOpen && (
         <div className="absolute bottom-14 left-0 right-0 z-[500] px-4 pb-2">
-          <div className="glass-strong rounded-2xl px-4 pt-4 pb-3 space-y-3">
+          <div className="glass-strong rounded-2xl px-4 pt-2 pb-3 space-y-3">
+            {/* AI search toggle */}
+            <div className="flex items-center justify-between gap-1.5 py-0.5">
+              <div className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-primary" />
+                <span className="text-[10px] font-medium text-foreground">AI search</span>
+              </div>
+              <div className="scale-75 origin-right">
+                <Switch
+                  checked={aiSearchEnabled}
+                  onCheckedChange={(checked) => {
+                    setAiSearchEnabled(checked);
+                    if (checked) setLocalSearchFilter("");
+                  }}
+                  aria-label="Toggle AI search"
+                />
+              </div>
+            </div>
+
             {/* Greeting */}
             <div className="text-center">
               <h1 className="text-lg font-bold text-foreground tracking-tight leading-snug">
                 What are you looking for? ✨
               </h1>
               <p className="text-xs text-muted-foreground/70 mt-0.5 font-medium">
-                Discover, book & bid on local services
+                Discover, book & get discounts on local services
               </p>
             </div>
+
+            {/* Vibe filter: only when search input is focused */}
+            {isFocused && (
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} compact />
+              </div>
+            )}
 
             {/* Search input */}
             <div
@@ -498,6 +541,15 @@ const Index = () => {
                               <span>·</span>
                               <span className={`font-medium ${status.color}`}>{status.label}</span>
                             </div>
+                            {(() => {
+                              const deal = getDealForPlaceId(place.id);
+                              if (!deal) return null;
+                              return (
+                                <p className="text-[10px] text-primary font-medium mb-0.5">
+                                  {deal.title} · {deal.discount}
+                                </p>
+                              );
+                            })()}
                             {place.tags.length > 0 && (
                               <p className="text-[10px] text-muted-foreground leading-relaxed">
                                 {place.tags.join(", ")}

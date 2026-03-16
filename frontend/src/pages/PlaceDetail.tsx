@@ -3,12 +3,10 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, Share2, Heart, Star, MapPin, CheckCircle2,
-  AlertCircle, Clock, Gavel, MessageSquare, Users, Phone,
+  AlertCircle, Clock, MessageSquare, Users, Phone,
   Globe, ExternalLink, Navigation, ChevronDown, ChevronUp,
   Facebook, Instagram, Train, Bus, Footprints,
 } from "lucide-react";
-import BidDrawer from "@/components/place/BidDrawer";
-import ChatDrawer from "@/components/chat/ChatDrawer";
 import FlashDealBanner from "@/components/place/FlashDealBanner";
 import QueueIndicator from "@/components/place/QueueIndicator";
 import QueueDrawer from "@/components/place/QueueDrawer";
@@ -19,6 +17,7 @@ import PopularTimesChart from "@/components/place/PopularTimesChart";
 import type { PlaceDetail as PlaceDetailType, FlashDeal, PlaceDetailResponse } from "@/types";
 import { getPlaceDetail } from "@/services/api";
 import { useSavedPlaces } from "@/contexts/SavedPlacesContext";
+import { getPlaceDetailFromProvider, getReviewsForPlace, getDealForPlaceId } from "@/data/providers";
 
 // ── Mock detail data aligned with PlaceDetail contract ──
 const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
@@ -175,14 +174,12 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
   },
 };
 
-// Flash deal data (kept separate for frontend-only features)
+// Flash deal data — discount-only stores (no overlap with queue: p001–p010)
 const FLASH_DEALS: Record<string, FlashDeal> = {
-  p1: { title: "Espresso Happy Hour", discount: "-40%", expires_at: new Date(Date.now() + 3600000).toISOString(), remaining: 12 },
-  p3: { title: "Buy 2 Get 1 Free", discount: "3 for 2", expires_at: new Date(Date.now() + 1800000).toISOString(), remaining: 5 },
-  p5: { title: "Dinner Set Menu", discount: "-30%", expires_at: new Date(Date.now() + 7200000).toISOString(), remaining: 8 },
+  p011: { title: "Espresso Happy Hour", discount: "-40%", expires_at: new Date(Date.now() + 3600000).toISOString(), remaining: 8 },
+  p012: { title: "Buy 2 Get 1 Free", discount: "3 for 2", expires_at: new Date(Date.now() + 1800000).toISOString(), remaining: 5 },
+  p013: { title: "Dinner Set Menu", discount: "-30%", expires_at: new Date(Date.now() + 7200000).toISOString(), remaining: 8 },
 };
-
-const BIDDING_PLACES = ["p1", "p3", "p5", "p7", "p8"];
 
 const heroGradients = [
   "from-amber-800/80 via-amber-700/60 to-amber-900/80",
@@ -205,22 +202,32 @@ export default function PlaceDetail() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [bidOpen, setBidOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [showQA, setShowQA] = useState(false);
   const [detail, setDetail] = useState<PlaceDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
+  const [heroImageError, setHeroImageError] = useState(false);
   const { getQueueInfo, userQueue, joinQueue, leaveQueue } = useQueueStatus();
   const { isSaved, toggleSave } = useSavedPlaces();
 
   const requestId = searchParams.get("request_id");
-  const hasBidding = BIDDING_PLACES.includes(id || "");
-  const flashDeal = FLASH_DEALS[id || ""];
+  const flashDeal = useMemo(() => {
+    const hardcoded = FLASH_DEALS[id || ""];
+    if (hardcoded) return hardcoded;
+    const fromProvider = id ? getDealForPlaceId(id) : undefined;
+    if (!fromProvider) return undefined;
+    return {
+      title: fromProvider.title,
+      discount: fromProvider.discount,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      remaining: fromProvider.remaining,
+    };
+  }, [id]);
+  const placeReviews = useMemo(() => getReviewsForPlace(id || ""), [id]);
 
-  // Try fetching from API, fall back to mock
+  // Try fetching from API, fall back to crawled provider data or mock
   useEffect(() => {
     let cancelled = false;
     async function fetchDetail() {
@@ -235,10 +242,11 @@ export default function PlaceDetail() {
           setLoading(false);
         }
       } catch {
-        // Fall back to mock
-        const mock = MOCK_DETAILS[id || ""] || MOCK_DETAILS.p5;
+        // Fall back to crawled Zurich provider data, then legacy mock
+        const fromProvider = id ? getPlaceDetailFromProvider(id) : null;
+        const fallback = fromProvider ?? MOCK_DETAILS[id || ""]?.detail ?? MOCK_DETAILS.p5?.detail;
         if (!cancelled) {
-          setDetail(mock.detail);
+          setDetail(fromProvider ?? fallback);
           setLoading(false);
         }
       }
@@ -249,7 +257,12 @@ export default function PlaceDetail() {
 
   useEffect(() => {
     setImageIndex(0);
+    setHeroImageError(false);
   }, [id]);
+
+  useEffect(() => {
+    setHeroImageError(false);
+  }, [imageIndex]);
 
   if (loading || !detail) {
     return (
@@ -285,22 +298,28 @@ export default function PlaceDetail() {
 
   return (
     <div className="h-[100dvh] flex flex-col bg-background overflow-y-auto">
-      {/* Hero Image Area */}
-      <div className="relative h-72 flex-shrink-0 overflow-hidden">
-        {hasHeroImages ? (
+      {/* Hero Image Area: base gradient when no images or image fails to load */}
+      <div className="relative h-72 flex-shrink-0 overflow-hidden bg-muted/50">
+        {/* Fallback gradient layer (visible when no image or load error) */}
+        <div
+          className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${heroGradients[gradientIdx]}`}
+          aria-hidden
+        />
+        {hasHeroImages && !heroImageError ? (
           <img
             key={imageIndex}
             src={currentHeroImage}
             alt={`${place.name} — image ${imageIndex + 1}`}
             className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setHeroImageError(true)}
           />
         ) : null}
-        {/* Light overlay only at bottom for dots/contrast; no green when image exists */}
+        {/* Light overlay at bottom when image is visible; otherwise gradient already shown */}
         <div
           className={`absolute inset-0 pointer-events-none ${
-            hasHeroImages
+            hasHeroImages && !heroImageError
               ? "bg-gradient-to-t from-black/50 via-transparent to-transparent"
-              : `bg-gradient-to-br ${heroGradients[gradientIdx]}`
+              : "bg-transparent"
           }`}
         />
         <div className="absolute top-0 left-0 right-0 z-10 safe-top">
@@ -317,8 +336,10 @@ export default function PlaceDetail() {
               <motion.button whileTap={{ scale: 0.9 }}
                 onClick={() => {
                   if (!detail) return;
+                  const canonicalId = id ?? place.place_id;
+                  const q = getQueueInfo(canonicalId);
                   toggleSave({
-                    id: place.place_id,
+                    id: canonicalId,
                     name: place.name,
                     rating: place.rating,
                     category: place.price_level || "Place",
@@ -327,22 +348,15 @@ export default function PlaceDetail() {
                     status: place.status as "open_now" | "closing_soon" | "closed",
                     tags: place.detailed_characteristics?.slice(0, 2) || [],
                     savedAt: "Just now",
+                    queueSnapshot: q ? { level: q.level, waitMinutes: q.waitMinutes, peopleAhead: q.peopleAhead } : undefined,
                   });
                 }}
                 className="w-9 h-9 rounded-full bg-background/30 backdrop-blur-sm flex items-center justify-center">
-                <Heart className={`w-4 h-4 transition-colors ${isSaved(place.place_id) ? "text-primary fill-primary" : "text-background"}`} />
+                <Heart className={`w-4 h-4 transition-colors ${isSaved(id ?? place.place_id) ? "text-primary fill-primary" : "text-background"}`} />
               </motion.button>
             </div>
           </div>
         </div>
-
-        {hasBidding && (
-          <div className="absolute top-16 right-4 z-10">
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent text-accent-foreground text-[10px] font-bold shadow-md">
-              <Gavel className="w-3 h-3" /> BIDDING AVAILABLE
-            </div>
-          </div>
-        )}
 
         {/* Left/right carousel controls when multiple images */}
         {heroImages.length > 1 && (
@@ -389,11 +403,6 @@ export default function PlaceDetail() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-semibold tracking-widest uppercase text-primary">CURATED CHOICE</span>
-            {hasBidding && (
-              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground text-[9px] font-semibold">
-                <Gavel className="w-2.5 h-2.5" /> BID
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-1">
             <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
@@ -457,6 +466,29 @@ export default function PlaceDetail() {
 
         {/* Flash Deal */}
         {flashDeal && <FlashDealBanner deal={flashDeal} variant="full" onClaim={() => {}} />}
+
+        {/* Queue Status — below discount; shown for places with mock queue (e.g. seed restaurants) */}
+        {(() => {
+          const queueInfo = getQueueInfo(id || "");
+          if (!queueInfo) return null;
+          return (
+            <div className="mb-4 p-4 rounded-xl bg-muted/30 border border-border/40">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">QUEUE STATUS</p>
+                <QueueIndicator level={queueInfo.level} waitMinutes={queueInfo.waitMinutes} compact />
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                <span className="flex items-center gap-1"><Users className="w-3 h-3" />{queueInfo.peopleAhead} in queue</span>
+                <span>·</span>
+                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />~{queueInfo.waitMinutes} min wait</span>
+              </div>
+              <motion.button whileTap={{ scale: 0.98 }} onClick={() => setQueueOpen(true)}
+                className="w-full py-2 rounded-lg border border-primary/30 text-primary text-sm font-medium flex items-center justify-center gap-2">
+                <Users className="w-4 h-4" /> Join Queue
+              </motion.button>
+            </div>
+          );
+        })()}
 
         {/* Recommendation Reasons */}
         {recommendation_reasons && recommendation_reasons.length > 0 && (
@@ -594,43 +626,26 @@ export default function PlaceDetail() {
             <span>Reviews ({place.rating_count})</span>
             {showReviews ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
-          {showReviews && <ReviewsList placeId={place.place_id} />}
+          {showReviews && <ReviewsList placeId={place.place_id} initialReviews={placeReviews} />}
         </div>
-
-        {/* Queue Status */}
-        {(() => {
-          const queueInfo = getQueueInfo(id || "");
-          if (!queueInfo) return null;
-          return (
-            <div className="mb-4 p-3 rounded-xl bg-muted/30 border border-border/40">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">QUEUE STATUS</p>
-                <QueueIndicator level={queueInfo.level} waitMinutes={queueInfo.waitMinutes} compact />
-              </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1"><Users className="w-3 h-3" />{queueInfo.peopleAhead} in queue</span>
-                <span>·</span>
-                <span className="flex items-center gap-1"><Clock className="w-3 h-3" />~{queueInfo.waitMinutes} min wait</span>
-              </div>
-            </div>
-          );
-        })()}
 
         {/* Action buttons */}
         <div className="flex gap-3 pb-8">
-          <motion.button whileTap={{ scale: 0.95 }} onClick={() => setChatOpen(true)}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate("/chat")}
             className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2">
             <MessageSquare className="w-4 h-4" /> Chat
           </motion.button>
-          <motion.button whileTap={{ scale: 0.95 }} onClick={() => setQueueOpen(true)}
-            className="flex-1 py-3 rounded-xl border border-primary/30 text-primary text-sm font-semibold flex items-center justify-center gap-2">
-            <Users className="w-4 h-4" /> Join Queue
-          </motion.button>
+          {getQueueInfo(id || "") && (
+            <motion.button whileTap={{ scale: 0.95 }} onClick={() => setQueueOpen(true)}
+              className="flex-1 py-3 rounded-xl border border-primary/30 text-primary text-sm font-semibold flex items-center justify-center gap-2">
+              <Users className="w-4 h-4" /> Join Queue
+            </motion.button>
+          )}
         </div>
       </div>
 
-      <BidDrawer isOpen={bidOpen} onClose={() => setBidOpen(false)} placeName={place.name} priceLevel={PRICE_DISPLAY[place.price_level] || "$$"} />
-      <ChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} placeName={place.name} placeCategory={place.address} />
       <QueueDrawer
         isOpen={queueOpen} onClose={() => setQueueOpen(false)}
         placeName={place.name} placeId={id || ""}

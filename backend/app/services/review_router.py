@@ -123,22 +123,35 @@ def _try_summarize_provider_advanced(provider: dict) -> dict | None:
 def _normalize_advanced_result(result: dict[str, Any], provider: dict) -> dict:
     """Map advanced review_analysis output to the graph-compatible schema."""
     payload = result.get("orchestrator_payload") or {}
-    return {
+    summary = payload.get("summary")
+    out: dict[str, Any] = {
         "place_id": _provider_place_id(provider),
         "advantages": _coerce_string_list(payload.get("strengths")),
         "disadvantages": _coerce_string_list(payload.get("weaknesses")),
+        "summary": str(summary).strip() if summary else "",
     }
+    # Frontend expects string keys "1"-"5" for rating distribution
+    raw_dist = payload.get("rating_distribution")
+    if isinstance(raw_dist, dict) and raw_dist:
+        out["rating_distribution"] = {str(k): int(v) for k, v in raw_dist.items()}
+    return out
 
 
 def _normalize_summary_item(summary: dict[str, Any] | None, provider: dict) -> dict:
     """Normalize any simple-style summary dict to the public router schema."""
     summary = summary or {}
     place_id = str(summary.get("place_id") or _provider_place_id(provider))
-    return {
+    s = summary.get("summary")
+    out: dict[str, Any] = {
         "place_id": place_id,
         "advantages": _coerce_string_list(summary.get("advantages")),
         "disadvantages": _coerce_string_list(summary.get("disadvantages")),
+        "summary": str(s).strip() if s else "",
     }
+    raw_dist = summary.get("rating_distribution")
+    if isinstance(raw_dist, dict) and raw_dist:
+        out["rating_distribution"] = {str(k): int(v) for k, v in raw_dist.items()}
+    return out
 
 
 def _empty_summary(provider: dict) -> dict:
@@ -147,6 +160,7 @@ def _empty_summary(provider: dict) -> dict:
         "place_id": _provider_place_id(provider),
         "advantages": [],
         "disadvantages": [],
+        "summary": "",
     }
 
 

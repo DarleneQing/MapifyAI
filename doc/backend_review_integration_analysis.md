@@ -113,8 +113,12 @@ Scope: inspect-only analysis of current backend codebase (no code changes)
    - Orchestrator call into graph: backend/app/services/orchestrator_service.py imports and calls run_pipeline(...)
 
 2. SSE stream path:
-   - API endpoint: backend/app/api/requests.py, _sse_response(...)
-   - Direct graph streaming call inside worker thread: stream_pipeline(...)
+   - API endpoint: backend/app/api/requests.py, `_sse_response(...)`
+   - Direct graph streaming call inside worker thread: `stream_pipeline(...)`
+   - For the **parallel** stage (`evaluation_agent` + `review_agent`):
+     - both agents emit `"starting"` progress events when they begin, and
+     - both emit `"done"` progress events once completed (the stream now iterates all nodes in each LangGraph chunk instead of only the first key).
+   - This ensures the frontend can show **Scoring & Ranking** and **Analyzing Reviews** with correct durations, and in advanced Apify mode the UI remains on **Analyzing Reviews** while the Google‑Reviews scraper is still running.
 
 ### 1.2 Graph orchestration entry
 

@@ -60,7 +60,15 @@ async def get_place_detail(place_id: str, request_id: str | None = None):
     review_summary = raw.get("review_summary", {})
     if not review_summary:
         review_summary = {"advantages": [], "disadvantages": [], "star_reasons": {}}
-    
+    # Prefer pipeline LLM summary (final summary after ranking/scoring) for WHY WE RECOMMEND THIS
+    summary_text = (review_summary.get("summary") or "").strip()
+    if summary_text:
+        recommendation_reasons = [summary_text]
+    elif raw.get("one_sentence_recommendation"):
+        recommendation_reasons = [raw.get("one_sentence_recommendation", "")]
+    else:
+        recommendation_reasons = []
+
     return {
         "request_id": request_id,
         "detail": {
@@ -69,7 +77,7 @@ async def get_place_detail(place_id: str, request_id: str | None = None):
             "rating_distribution": raw.get("review_distribution") or {},
             "questions_and_answers": None,  # Could add from Apify Q&A
             "customer_updates": None,
-            "recommendation_reasons": [raw.get("one_sentence_recommendation", "")] if raw.get("one_sentence_recommendation") else [],
+            "recommendation_reasons": recommendation_reasons,
         },
     }
 

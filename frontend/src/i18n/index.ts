@@ -24,8 +24,6 @@ interface TranslationStrings {
   priceFirst: string;
   distanceFirst: string;
   ratingFirst: string;
-  bidHall: string;
-  bidHallEmpty: string;
   privacy: string;
   privacyNote: string;
 }
@@ -55,8 +53,6 @@ const translations: Record<Lang, TranslationStrings> = {
     priceFirst: "Price priority",
     distanceFirst: "Distance priority",
     ratingFirst: "Rating priority",
-    bidHall: "Bid Hall",
-    bidHallEmpty: "Live bids will appear after search",
     privacy: "Privacy",
     privacyNote: "We only collect location data for recommendations. Data is encrypted and never shared with third parties.",
   },
@@ -84,8 +80,6 @@ const translations: Record<Lang, TranslationStrings> = {
     priceFirst: "价格优先",
     distanceFirst: "距离优先",
     ratingFirst: "评分优先",
-    bidHall: "竞价大厅",
-    bidHallEmpty: "搜索后将显示实时报价",
     privacy: "隐私说明",
     privacyNote: "我们仅收集位置信息用于推荐，数据加密存储，不会分享给第三方。",
   },

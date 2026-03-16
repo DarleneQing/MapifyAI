@@ -59,7 +59,7 @@ frontend/
 │   │   ├── chat/                # AI chat, pipeline, FAB
 │   │   │   ├── ChatDrawer.tsx, AgentPipeline.tsx, AIChatOverlay.tsx
 │   │   │   └── README.md
-│   │   ├── explore/             # Map, pins, search, vibe filters
+│   │   ├── explore/             # Map, pins; SearchBar/VibeFilter exist but Explore page uses simplified list
 │   │   │   ├── MapBackground.tsx, MapPins.tsx, SearchBar.tsx, VibeFilter.tsx
 │   │   │   └── README.md
 │   │   ├── layout/              # Tab bar, sidebar, notification center
@@ -174,7 +174,7 @@ const App = () => (
 | `/login` | `Login` | Authentication (personal/merchant) |
 | `/merchant` | `MerchantDashboard` | Merchant analytics portal |
 | `/merchant/settings` | `MerchantSettings` | Merchant configuration |
-| `/explore` | `Explore` | Browse all places with filters |
+| `/explore` | `Explore` | Browse places list (header + count + list; no in-page filters) |
 | `/chat` | `Chat` | AI conversational interface |
 | `/recommendations` | `Recommendations` | AI-powered results with streaming |
 | `/map` | `MapExplorer` | Full-screen map view |
@@ -198,11 +198,19 @@ const App = () => (
 
 #### `Index.tsx` - Home Page
 - Map background with Leaflet
-- Search bar with voice input → navigates to `/chat?q={query}`
+- Search bar with voice input; behavior depends on **AI search** toggle:
+  - **AI search ON** (default): navigates to `/chat?q={query}` (AI-powered search).
+  - **AI search OFF**: navigates to `/explore?q={query}` so Explore shows keyword-filtered results (name/tags).
 - Category chips (Food, Coffee, Haircut, etc.)
 - Vibe filters
 - Explore sheet with nearby places (local mock data)
 - Notification center
+
+#### `Explore.tsx` - Browse Places
+- Header ("Explore", nearby count, notification center)
+- "X places found" label and scrollable place list (local mock data)
+- **Keyword from URL**: accepts optional `?q={keyword}`. When opened from Home with AI search off, the keyword is read from the URL and the list is filtered by place name and tags (related results).
+- Category and vibe filter state used for filtering; no in-page search input (keyword is set via URL when arriving from Home).
 
 #### `Recommendations.tsx` - AI Results
 - Receives results via multiple sources (priority order):
@@ -214,6 +222,7 @@ const App = () => (
 - Place cards with transit info
 - Results persist when switching tabs via `ChatContext`
 - Empty state shown when no results available from any source
+- No query display row, filter chips, or vibe filters on the page (streamlined list view)
 
 #### `PlaceDetail.tsx` - Place Page
 - **Hero image carousel**: Up to 4 place images from `detail.place.images` (from `GET /api/places/{place_id}`). When images exist: first image as hero background; left/right chevron buttons to cycle; dots for current index (clickable when multiple images). Light bottom-only gradient overlay when images exist (no full green overlay). When no images, fallback gradient background.
@@ -225,6 +234,7 @@ const App = () => (
 - Flash deals
 - Queue status
 - **Back button**: Top-left back button uses `navigate(-1)` to return to the previous screen without starting a new search (see Chat back-navigation below).
+- **Chat entry**: The primary "Chat" button navigates to `/chat`, so users always return to the single AI conversation (backed by `ChatContext`) instead of a per-place local chat drawer.
 
 #### `Chat.tsx` - AI Chat
 - Conversational interface with real backend API calls
@@ -264,7 +274,8 @@ const App = () => (
   - "Explore" tab shows active for both `/explore` and `/recommendations` routes
 - `MapBackground.tsx` lives in **explore/** - Full-screen map container
 - `AIChatOverlay.tsx` lives in **chat/** - Global chat FAB
-  - **Context-aware navigation**: When on `/recommendations`, FAB navigates to `/chat` (preserving conversation) instead of opening overlay
+  - **Consumers**: FAB always navigates to `/chat` so the single chat surface uses `ChatContext` and conversation memory is preserved
+  - **Merchants**: FAB opens the AIChatOverlay modal (merchant assistant; overlay does not use ChatContext)
 
 #### 3. Data Display Components (`src/components/place/`)
 - `PlaceCard.tsx` - Place list item with transit info, flash deals, queue status, recommendation tags
@@ -272,9 +283,9 @@ const App = () => (
 - `ReviewsList.tsx`, `RatingDistributionChart.tsx`, `PopularTimesChart.tsx` - Review and rating UI
 
 #### 4. Interactive Components (spread by feature)
-- **explore/**: `SearchBar.tsx`, `VibeFilter.tsx`
+- **explore/**: `SearchBar.tsx`, `VibeFilter.tsx` (available; Explore.tsx and Recommendations.tsx use simplified list views without these on-page)
 - **onboarding/**: `OnboardingSurvey.tsx`
-- **chat/**: `ChatDrawer.tsx`
+- **chat/**: `ChatDrawer.tsx` (used for per-place/provider chat surfaces; consumer AI search and recommendations always go through the `/chat` page backed by `ChatContext`, not this drawer)
 - **place/**: `BidDrawer.tsx`, `QueueDrawer.tsx`
 
 Each feature folder has a README describing its scope and which pages use it.
@@ -543,7 +554,7 @@ const { messages, lastSearchResults, setLastSearchResults } = useChatContext();
 - Messages persist when navigating between Chat ↔ Recommendations ↔ other tabs
 - Search results stored in `lastSearchResults` for tab-switching persistence
 - `lastSearchQuery` retains the query even after results arrive (unlike `currentQuery`)
-- Used by: `Chat.tsx`, `Recommendations.tsx`, `BottomTabBar.tsx`, `AIChatOverlay.tsx`
+- Used by: `Chat.tsx`, `Recommendations.tsx`, `BottomTabBar.tsx`. For consumers, the FAB navigates to `/chat`, so `Chat.tsx` is the primary chat UI using this context; `AIChatOverlay.tsx` is used only for the merchant overlay and does not read or write ChatContext.
 
 #### `LanguageContext.tsx`
 ```typescript
@@ -779,6 +790,7 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
 
 ### Search Flow
 
+**When AI search is ON (default):**
 ```
 1. User enters query in Home page (Index.tsx) search input
    ↓
@@ -808,6 +820,17 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
     - ChatContext also has results for persistence
 ```
 
+**When AI search is OFF (Home):**
+```
+1. User enters keyword in Home page search input and submits (Enter or search button)
+   ↓
+2. handleSearch() navigates to /explore?q={keyword}
+   ↓
+3. Explore.tsx reads q from useSearchParams(), syncs to local search state
+   ↓
+4. Place list is filtered by name/tags; "X places found" shows related results
+```
+
 **Note:** Chat uses SSE streaming (`stream=true`). The same POST response is `text/event-stream`; the frontend parses progress (starting/done with duration_ms) and result events to drive AgentPipeline and final results.
 
 ### State Persistence Flow (Tab Navigation)
@@ -830,8 +853,8 @@ VITE_BACKEND_URL=http://127.0.0.1:8000  # Backend API base URL
 
 **Navigation Behavior:**
 - "Explore" tab → `/recommendations` if AI results exist, else `/explore`
-- FAB on `/recommendations` → navigates to `/chat` (preserves conversation)
-- FAB elsewhere → opens AIChatOverlay modal
+- **FAB (consumers)**: Always navigates to `/chat` (single chat with persistent memory via ChatContext)
+- **FAB (merchants)**: Opens AIChatOverlay modal
 
 ### Authentication Flow
 

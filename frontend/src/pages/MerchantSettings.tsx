@@ -34,7 +34,6 @@ const OPERATING_STYLES = [
 ];
 
 const FEATURE_TOGGLES = [
-  { key: "biddingEnabled" as const, icon: "🏷", label: "Enable Bidding", desc: "Let customers bid for your services" },
   { key: "flashDealsEnabled" as const, icon: "⚡", label: "Flash Deals", desc: "Publish time-limited promotions" },
   { key: "queueEnabled" as const, icon: "👥", label: "Queue System", desc: "Let customers join a virtual queue" },
 ];
@@ -44,7 +43,6 @@ const PRICE_LABELS = ["$", "$$", "$$$", "$$$$", "$$$$$"];
 const DEFAULT_PREFS: MerchantPreferences = {
   serviceCategories: [],
   targetCustomers: [],
-  biddingEnabled: false,
   flashDealsEnabled: true,
   queueEnabled: true,
   operatingStyle: "",

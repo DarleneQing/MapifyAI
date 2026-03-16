@@ -49,6 +49,22 @@ function agentToStage(agent: string): PipelineStage {
   return map[agent] ?? "intent_parsed";
 }
 
+/** Ordered pipeline stages; index matches stepDurations (reviews_fetched=3, scores_computed=4). */
+const STAGE_ORDER: PipelineStage[] = [
+  "intent_parsed",
+  "stores_crawled",
+  "transit_computed",
+  "reviews_fetched",
+  "scores_computed",
+  "recommendations_ready",
+];
+
+/** First stage that is not yet complete (no duration). Keeps "Analyzing Reviews" active until review_agent finishes. */
+function firstIncompleteStage(stepDurations: (number | undefined)[]): PipelineStage {
+  const i = STAGE_ORDER.findIndex((_, idx) => stepDurations[idx] == null);
+  return i === -1 ? "recommendations_ready" : STAGE_ORDER[i]!;
+}
+
 // ── Mock 数据（后端未就绪时使用）──
 const MOCK_PLACES: PlaceSummary[] = [
   {
@@ -195,6 +211,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [pipelineStage, setPipelineStage] = useState<PipelineStage>("idle");
   const [stepDurations, setStepDurations] = useState<(number | undefined)[]>([]);
+  const stepDurationsRef = useRef<(number | undefined)[]>([]);
   const timerRef = useRef<number[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -309,6 +326,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
       abortStream();
       setResults([]);
       setStepDurations([]);
+      stepDurationsRef.current = [];
       setIsLoading(true);
       setIsStreaming(true);
       setPipelineStage("idle");
@@ -334,16 +352,21 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
               if (event.type === "progress") {
                 if (event.status === "starting") {
                   setPipelineStage(agentToStage(event.agent));
-                } else if (event.status === "done" && event.duration_ms != null) {
+                } else if (event.status === "done") {
                   const idx = agentToStepIndex(event.agent);
-                  setStepDurations((prev) => {
-                    const next = [...prev];
-                    while (next.length <= idx) next.push(undefined);
-                    // Keep the larger value when parallel agents share a slot (e.g. output_ranking)
+                  const prev = stepDurationsRef.current;
+                  const next = [...prev];
+                  while (next.length <= idx) next.push(undefined);
+                  if (event.duration_ms != null) {
                     const existing = next[idx];
-                    next[idx] = existing == null ? event.duration_ms! : Math.max(existing, event.duration_ms!);
-                    return next;
-                  });
+                    next[idx] = existing == null ? event.duration_ms : Math.max(existing, event.duration_ms);
+                  }
+                  stepDurationsRef.current = next;
+                  setStepDurations(next);
+                  // Show first incomplete stage so "Analyzing Reviews" stays active until review_agent finishes (advanced mode)
+                  setPipelineStage((cur) =>
+                    cur === "completed" ? cur : firstIncompleteStage(next)
+                  );
                 }
               } else if (event.type === "result") {
                 const req = event.request;
@@ -398,6 +421,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
     abortStream();
     setResults([]);
     setStepDurations([]);
+    stepDurationsRef.current = [];
     setIsLoading(false);
     setIsStreaming(false);
     setRequestId(null);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getSeedStoresForNotificationDeals } from "@/data/providers";
 
-export type NotificationType = "flash_deal" | "queue_update" | "new_offer" | "status_change";
+export type NotificationType = "flash_deal" | "queue_update" | "status_change";
 
 export interface MerchantNotification {
   id: string;
@@ -53,15 +54,6 @@ const NOTIFICATION_TEMPLATES: Omit<MerchantNotification, "id" | "timestamp" | "r
     actionUrl: "/place/p7",
   },
   {
-    type: "new_offer",
-    placeId: "p9",
-    placeName: "Fresh Auto Wash",
-    title: "🚗 Premium Wash -50%",
-    body: "Flash deal just dropped! Only 3 spots remaining.",
-    icon: "🚗",
-    actionUrl: "/place/p9",
-  },
-  {
     type: "status_change",
     placeId: "p10",
     placeName: "Grand View Hotel",
@@ -90,11 +82,55 @@ const NOTIFICATION_TEMPLATES: Omit<MerchantNotification, "id" | "timestamp" | "r
   },
 ];
 
+const DEAL_BODIES = [
+  "Limited time offer — 40% off for the next hour!",
+  "Buy 1 get 1 free — today only.",
+  "Flash deal: 30% off. Only a few spots left!",
+  "Lunch special — 25% off until 14:00.",
+  "Bundle deal: 3 for the price of 2 — while stocks last!",
+  "Morning special: 20% off before 12:00. Walk-ins welcome!",
+];
+
+function iconForCategory(category: string): string {
+  const m: Record<string, string> = {
+    haircut: "✂️",
+    cafe: "☕",
+    restaurant: "🍽",
+    bar: "🍸",
+    massage: "💆",
+    dentist: "🦷",
+    repair: "🔧",
+  };
+  return m[category] ?? "⚡";
+}
+
 export function useNotifications() {
   const [notifications, setNotifications] = useState<MerchantNotification[]>([]);
   const [latestPush, setLatestPush] = useState<MerchantNotification | null>(null);
   const templateIdx = useRef(0);
   const timerRef = useRef<number | null>(null);
+
+  // Seed mock deals from actual seed stores (toast + list)
+  useEffect(() => {
+    const stores = getSeedStoresForNotificationDeals(6);
+    const now = Date.now();
+    const seeded: MerchantNotification[] = stores.map((store, i) => ({
+      id: `notif-mock-deal-${now}-${i}`,
+      type: "flash_deal",
+      placeId: store.id,
+      placeName: store.name,
+      title: "⚡ New Flash Deal!",
+      body: DEAL_BODIES[i % DEAL_BODIES.length],
+      icon: iconForCategory(store.category),
+      timestamp: now - i * 60000,
+      read: false,
+      actionUrl: `/place/${store.id}`,
+    }));
+    setNotifications(seeded);
+    setLatestPush(seeded[0]);
+    const t = window.setTimeout(() => setLatestPush(null), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Simulate merchant pushes - DISABLED for prototyping
   // Uncomment to enable fake notification simulation

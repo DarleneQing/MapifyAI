@@ -1,8 +1,38 @@
 # Backend Architecture Analysis Report
 
 > **Analysis Date**: 2026-03-14  
+> **Last Updated**: 2026-03-15 (post David Song integration)  
 > **Scope**: Backend implementation vs. documented specifications  
-> **Reference Docs**: `api-intelligent-local-bid.md`, `PRD_IntelligentLocalBid.md`, `controller-service-contract.md`, `controller-frontend-contract.md`
+> **Reference Docs**: `api-intelligent-local-bid.md`, `PRD_IntelligentLocalBid.md`, `controller-service-contract.md`, `controller-frontend-contract.md`  
+> **Related Teammate Analysis**: `backend_llm_integration_analysis.md`, `doc/backend_review_integration_analysis.md`
+
+---
+
+## Teammate Integration Update (2026-03-15)
+
+David Song’s commit **e1b66b9** (“feat: orchestrator-only LLM override + Featherless QwQ-32B trial config”) added:
+
+1. **Review router integration**  
+   - New service: `backend/app/services/review_router.py` with `route_review_summaries(providers, review_mode)`.  
+   - Modes: `simple` (existing Daisy path), `advanced` (review_analysis per provider), `fallback` (advanced → simple per provider).  
+   - Output normalized to `{place_id, advantages, disadvantages}` for orchestrator compatibility.  
+   - `_review_node` in `graph.py` now delegates to the router; `review_mode` comes from state → `REVIEW_MODE` env → default `"simple"`.  
+   - **The `review_analysis/` module is now integrated** into the main pipeline via this router (previously documented as “NOT integrated”).
+
+2. **Orchestrator-only LLM override**  
+   - Config in `config.py`: `ORCHESTRATOR_MODEL`, `ORCHESTRATOR_API_KEY`, `ORCHESTRATOR_BASE_URL`.  
+   - `_orchestrator_node` in `graph.py` resolves: API key/model from ORCHESTRATOR_* or fallback to `OPENAI_API_KEY` / `DEFAULT_MODEL`; uses `base_url` when set (e.g. Featherless).  
+   - Intent parser and simple/advanced review summarizers are unchanged; only the orchestrator LLM is overridable.  
+   - Docs/examples: `backend/.env.example`, `backend/README.md` (e.g. QwQ-32B trial).
+
+3. **State and config**  
+   - `PlannerState` in `state.py`: optional `review_mode`.  
+   - `config.py`: `REVIEW_MODE` (existing) plus `ORCHESTRATOR_MODEL`, `ORCHESTRATOR_API_KEY`, `ORCHESTRATOR_BASE_URL`.
+
+4. **Tests added**  
+   - `backend/tests/test_review_router.py`, `test_graph_review_node.py`, `test_graph_import_smoke.py`, `test_graph_orchestrator_config.py`.
+
+Wiring for providers/offers and auth (`get_current_provider_id`) is unchanged; see sections 2 and 7 below for remaining gaps.
 
 ---
 
@@ -83,6 +113,7 @@ GET /api/profile                    | GET /api/users/me (partial)
 | `ranking` module | ranking.py | ✓ (internal) | Score calculation |
 | `explanation` module | explanation.py | ✓ (internal) | Reason generation |
 | `reviews` module | reviews.py | ✓ (internal) | LLM review summarization |
+| `review_router` | review_router.py | ✓ Yes | Routes simple/advanced/fallback; used by _review_node |
 | `swiss_transit` module | swiss_transit.py | ✓ (internal) | transport.opendata.ch |
 | `apify_search` module | apify_search.py | ✓ (internal) | Apify Google Maps |
 | `geo` module | geo.py | ✓ (internal) | Haversine distance |
@@ -154,8 +185,8 @@ The LangGraph pipeline is **fully implemented** and matches the PRD specificatio
 | Crawling Search | crawling_search.py | ✓ Complete | Apify Google Maps; `maxImages: 4`, provider dict includes `images` (list of URLs) |
 | Transit Calculator | transit_calculator.py | ✓ Complete | transport.opendata.ch |
 | Evaluation Agent | graph.py | ✓ Complete | - |
-| Review Agent | graph.py + reviews.py | ✓ Basic | OpenAI |
-| Orchestrator Agent | graph.py | ✓ Complete | OpenAI |
+| Review Agent | graph.py + review_router.py | ✓ Complete | simple: OpenAI; advanced/fallback: review_analysis (Featherless optional) |
+| Orchestrator Agent | graph.py | ✓ Complete | Configurable: ORCHESTRATOR_* or OpenAI |
 | Output Ranking | graph.py | ✓ Complete | - |
 
 ### 3.3 Parallel Execution ✓
@@ -187,9 +218,9 @@ The pipeline correctly implements parallel execution:
 | `place_service.py` | `review_analysis/service.py` | Both generate review summaries |
 
 **Details**:
-- `reviews.py`: Simple LLM-based summary used in pipeline
-- `review_analysis/`: Full pipeline with Apify review scraper, filtering, and structured output
-- **The `review_analysis/` module is NOT integrated into the main agent pipeline**
+- `reviews.py`: Simple LLM-based summary used in pipeline (Daisy/simple path).
+- `review_analysis/`: Full pipeline with Apify review scraper, filtering, and structured output.
+- **As of 2026-03-15:** The `review_analysis/` module **is integrated** via `review_router.py`. The graph’s `_review_node` calls `route_review_summaries(..., review_mode)`; modes `advanced` and `fallback` use the review_analysis pipeline (per provider), with output normalized to `{place_id, advantages, disadvantages}` for the orchestrator.
 
 ---
 
@@ -209,18 +240,36 @@ The pipeline correctly implements parallel execution:
 
 The same POST response has `Content-Type: text/event-stream`. Each line is `data: <JSON>\n\n`:
 
-- **progress (starting)**: `{ "type": "progress", "status": "starting", "agent": "<node_name>", "message": "..." }` — pushed in real time when a node is about to run (via `on_node_start` callback to async queue).
-- **progress (done)**: `{ "type": "progress", "status": "done", "agent": "<node_name>", "duration_ms": <number>, "message": "..." }` — after node completes; `duration_ms` is wall-clock from backend.
+- **progress (starting)**: `{ "type": "progress", "status": "starting", "agent": "<node_name>", "message": "..." }`  
+  - Emitted via the LangGraph callback when a node is about to run.  
+  - For fan‑out after `transit_calculator`, both `evaluation_agent` and `review_agent` get their own `"starting"` events.
+- **progress (done)**: `{ "type": "progress", "status": "done", "agent": "<node_name>", "duration_ms": <number>, "message": "..." }`  
+  - Emitted once per node when it finishes.  
+  - For the parallel branch, **both** `evaluation_agent` and `review_agent` now emit `"done"` events (the stream iterates all keys in each LangGraph chunk), so frontend timing for **Scoring & Ranking** and **Analyzing Reviews** is accurate even in advanced Apify mode.
 - **result**: `{ "type": "result", "request": {...}, "results": [PlaceSummary[]] }`.
 - **error**: `{ "type": "error", "message": "..." }`.
 
-Backend agent names: `intent_parser`, `crawling_search`, `transit_calculator`, `review_agent`, `evaluation_agent`, `orchestrator_agent`, `output_ranking`.
+Backend agent names: `intent_parser`, `crawling_search`, `transit_calculator`, `review_agent`, `evaluation_agent`, `orchestrator_agent`, `output_ranking`.  The logical 7 UI stages are:
+`intent_parsed` → `stores_crawled` → `transit_computed` → `reviews_fetched` → `scores_computed` → `recommendations_ready` → `completed`.
 
 ---
 
-## 6. Data Model Alignment
+## 6. Config and LLM Overrides (post 2026-03-15)
 
-### 6.1 Core Models ✓
+| Config | Purpose |
+|--------|--------|
+| `REVIEW_MODE` | Default review path: `simple` \| `advanced` \| `fallback`; overridable via `PlannerState.review_mode`. |
+| `ORCHESTRATOR_MODEL` | Model for orchestrator node only (e.g. `Qwen/QwQ-32B`). Fallback: `DEFAULT_MODEL`. |
+| `ORCHESTRATOR_API_KEY` | API key for orchestrator; fallback: `OPENAI_API_KEY`. |
+| `ORCHESTRATOR_BASE_URL` | Base URL for orchestrator client (e.g. `https://api.featherless.ai/v1`). |
+
+Intent parser and review summarizers (simple and advanced) are unchanged; only the orchestrator LLM uses ORCHESTRATOR_* when set. See repo-root `backend_llm_integration_analysis.md` and `doc/backend_review_integration_analysis.md` for full LLM call paths, review integration details, and compatibility notes.
+
+---
+
+## 7. Data Model Alignment
+
+### 7.1 Core Models ✓
 
 | Model | schemas.py | API Contract | Aligned |
 |-------|-----------|--------------|---------|
@@ -232,7 +281,7 @@ Backend agent names: `intent_parser`, `crawling_search`, `transit_calculator`, `
 | `AgentTrace` | ✓ | ✓ | ✓ |
 | `DeviceLocation` | ✓ | ✓ | ✓ |
 
-### 6.2 Missing Models
+### 7.2 Missing Models
 
 | Model | Documented In | Status |
 |-------|--------------|--------|
@@ -243,9 +292,9 @@ Backend agent names: `intent_parser`, `crawling_search`, `transit_calculator`, `
 
 ---
 
-## 7. Authentication & Authorization
+## 8. Authentication & Authorization
 
-### 7.1 Current State
+### 8.1 Current State
 
 ```python
 class AnonymousAuthService:
@@ -255,7 +304,7 @@ class AnonymousAuthService:
     # MISSING: get_current_provider_id()
 ```
 
-### 7.2 Issues
+### 8.2 Issues
 
 1. **`get_current_provider_id()`** is called in `offers.py` but **not implemented**
 2. No JWT/token validation
@@ -263,9 +312,9 @@ class AnonymousAuthService:
 
 ---
 
-## 8. Recommendations
+## 9. Recommendations
 
-### 8.1 Critical (P0) — Must Fix
+### 9.1 Critical (P0) — Must Fix
 
 1. **Wire missing services in `main.py`**:
    ```python
@@ -284,27 +333,26 @@ class AnonymousAuthService:
 
 3. **Delete redundant `*_todo.py` files**
 
-### 8.2 High (P1) — Should Fix
+### 9.2 High (P1) — Should Fix
 
 1. **Recommendation SSE** is implemented: `POST /api/requests?stream=true` returns SSE (progress starting/done with duration_ms, result, error). Optional: add `GET /api/requests/{id}/stream` for re-subscribe without re-POST.
 
-2. **Integrate `review_analysis/` module** or remove it:
-   - Either connect to pipeline's Review Agent
-   - Or remove to reduce confusion
+2. **`review_analysis/` integration (done 2026-03-15):** Connected via `review_router.py`; `_review_node` uses `review_mode` (state/env/default "simple"). Optional: document runtime override source (request vs env only) and per-provider latency/cost policy.
 
 3. **Add missing endpoints**:
    - `POST /api/profile/cold-start-survey`
    - `GET/PUT /api/profile`
    - `GET /api/meta/privacy`
 
-### 8.3 Medium (P2) — Nice to Have
+### 9.3 Medium (P2) — Nice to Have
 
 1. Create `UserProfile` model with full persona/weights
 2. Add `PrivacyMeta` model and endpoint
 3. Implement offer realtime SSE
 4. Add proper JWT authentication (Supabase Auth integration)
+5. **Orchestrator LLM (done 2026-03-15):** Orchestrator-only model/API/base_url override is implemented; see `backend_llm_integration_analysis.md` for details and Featherless/QwQ-32B trial notes.
 
-### 8.4 Low (P3) — Future
+### 9.4 Low (P3) — Future
 
 1. Provider dashboard APIs
 2. Multi-source data validation
@@ -312,7 +360,7 @@ class AnonymousAuthService:
 
 ---
 
-## 9. File Structure Summary
+## 10. File Structure Summary
 
 ```
 backend/app/
@@ -346,11 +394,12 @@ backend/app/
 │   ├── ranking_todo.py           ✗ REDUNDANT - delete
 │   ├── explanation.py            ✓ Reason generation
 │   ├── explaination_todo.py      ✗ REDUNDANT - delete
-│   ├── reviews.py                ✓ LLM summarization
+│   ├── reviews.py                ✓ LLM summarization (simple path)
+│   ├── review_router.py          ✓ Routes simple/advanced/fallback (integrated in graph)
 │   ├── swiss_transit.py          ✓ Transit API
 │   ├── apify_search.py           ✓ Apify client
 │   ├── geo.py                    ✓ Haversine
-│   └── review_analysis/          ⚠ NOT integrated
+│   └── review_analysis/          ✓ Integrated via review_router (advanced/fallback modes)
 │       ├── service.py
 │       ├── schemas.py
 │       ├── apify_client.py
@@ -364,14 +413,14 @@ backend/app/
 │   ├── schemas.py                ✓ Pydantic models
 │   └── db.py                     ✓ Supabase client
 │
-├── main.py                       ⚠ Missing wiring
-├── wiring.py                     ⚠ Missing functions
-└── config.py                     ✓ Environment config
+├── main.py                       ⚠ Missing providers/offers wiring
+├── wiring.py                     ⚠ Missing wire_providers_controller, wire_offers_controller
+└── config.py                     ✓ Environment config; includes REVIEW_MODE, ORCHESTRATOR_MODEL/API_KEY/BASE_URL
 ```
 
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
 The backend has **~70% functional coverage** of the documented API. The core recommendation pipeline works correctly, but several API endpoints are non-functional due to missing service wiring. The highest-priority fixes are:
 
