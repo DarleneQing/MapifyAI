@@ -165,7 +165,7 @@ const Index = () => {
 
   const handleRecenter = () => {
     if (mapRef.current) {
-      mapRef.current.setView([centerLat, centerLng], 15, { animate: true });
+      mapRef.current.setView([centerLat, centerLng], 14, { animate: true });
     }
   };
 
@@ -175,7 +175,7 @@ const Index = () => {
 
     const map = L.map(mapContainerRef.current, {
       center: [centerLat, centerLng],
-      zoom: 15,
+      zoom: 14,
       zoomControl: false,
       attributionControl: false,
     });

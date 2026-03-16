@@ -123,7 +123,11 @@
 **接口**
 
 - 方法：`GET /api/places/{place_id}`
-- 查询参数：`request_id`（可选）
+- 查询参数：
+  - `request_id`（可选）
+  - `rating_mode`（可选，前端可控切换评分分布来源）
+    - `"apify_raw"`：使用 Apify 爬虫返回的原始评分直方图（来自 `reviewsPerRating` / `reviewsPerScore`）
+    - `"review_pipeline"`：使用高级 review_analysis 管道基于最近一批已分析评论计算的评分分布
 
 **Controller 函数**
 
@@ -132,7 +136,7 @@
   - 接收 `place_id`、`request_id`
   - 调用 `place_service.get_place_detail()` 获取原始数据
   - **转换为 `PlaceDetailResponse` 契约结构**：Controller 负责将 Service 返回的扁平化数据转换为前端期望的嵌套结构
-  - 返回 `{ request_id, detail: { place, review_summary, rating_distribution, ... } }`
+  - 根据 `rating_mode` 选择评分分布来源，并返回 `{ request_id, detail: { place, review_summary, rating_distribution, ... } }`
 
 **响应结构转换**
 
@@ -144,17 +148,21 @@ Controller 从 `place_service` 获取的原始数据结构：
     "name": "...",
     "address": "...",
     "location": {...},
-    "rating": 4.6,
-    "review_count": 123,
-    "price_range": "$$",
+           "rating": 4.6,
+           "review_count": 123,
+           "price_range": "$10–20",
     "opening_hours": {"mon": "09:00-18:00", ...},
     "website_url": "...",
     "social_profiles": {...},
-    "popular_times": {...},
-    "images": ["url1", "url2", ...],  # 最多 4 张，来自 Apify 爬虫
-    "review_summary": {...},
-    "review_distribution": {...},
-    "one_sentence_recommendation": "..."
+   "popular_times": {...},
+   "images": ["url1", "url2", ...],  # 最多 4 张，来自 Apify 爬虫
+   "review_summary": {...},
+   # Apify / 原始评分直方图（来自爬虫 reviewsPerRating / reviewsPerScore）
+   "review_distribution": {...},
+   "review_distribution_apify": {...},
+   # 高级 review_analysis 管道基于最近一批评论计算的评分分布（如已存在）
+   "review_distribution_pipeline": {...} | null,
+   "one_sentence_recommendation": "..."
 }
 ```
 
@@ -171,9 +179,9 @@ Controller 转换为前端契约 `PlaceDetailResponse`：
             "phone": None,
             "website": raw["website_url"],
             "location": raw["location"],
-            "rating": raw["rating"],
-            "rating_count": raw["review_count"],
-            "price_level": _price_range_to_level(raw["price_range"]),
+           "rating": raw["rating"],
+           "rating_count": raw["review_count"],
+           "price_level": raw["price_range"],
             "status": _compute_status(raw["opening_hours"]),
             "opening_hours": _format_opening_hours(raw["opening_hours"]),
             "social_profiles": raw["social_profiles"],
@@ -182,7 +190,14 @@ Controller 转换为前端契约 `PlaceDetailResponse`：
             "detailed_characteristics": None,
         },
         "review_summary": raw["review_summary"],
-        "rating_distribution": raw["review_distribution"],
+        # 评分分布选择逻辑：
+        # - rating_mode="review_pipeline" 时优先使用 review_distribution_pipeline
+        # - 否则（默认或 rating_mode="apify_raw"）使用 review_distribution_apify / review_distribution
+        "rating_distribution": (
+            raw.get("review_distribution_pipeline")
+            if rating_mode == "review_pipeline"
+            else (raw.get("review_distribution_apify") or raw.get("review_distribution"))
+        ),
         "questions_and_answers": None,
         "customer_updates": None,
         "recommendation_reasons": [raw["one_sentence_recommendation"]] if raw.get("one_sentence_recommendation") else [],
@@ -192,7 +207,7 @@ Controller 转换为前端契约 `PlaceDetailResponse`：
 
 **辅助函数（Controller 层）**
 
-- `_price_range_to_level(price_range: str) -> str` — 将 `"$$"` 等价格字符串转换为 `"low" | "medium" | "high"`
+ - `_price_range_to_level(price_range: str) -> str` — （内部可选）将价格字符串转换为 `"low" | "medium" | "high"` 等离散等级，用于评分；**不再直接暴露到 `price_level` 字段，前端收到的是原始价格字符串（例如 `"$10–20"` 或 `"CHF 30–60"`）。**
 - `_compute_status(opening_hours: dict) -> str` — 根据当前时间和营业时间计算 `"open_now" | "closing_soon" | "closed"`
 - `_format_opening_hours(opening_hours: dict) -> dict` — 格式化为 `{ today_open, today_close, is_open_now }`
 

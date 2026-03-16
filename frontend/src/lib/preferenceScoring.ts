@@ -25,9 +25,6 @@ const PLACE_VIBES: Record<string, string[]> = {
   p6: ["quiet", "trendy"],
 };
 
-// Price level to numeric value
-const PRICE_MAP: Record<string, number> = { low: 1, medium: 3, high: 5 };
-
 /**
  * Score a single place against user preferences.
  * Returns a 0-1 normalized score.
@@ -41,10 +38,9 @@ export function scorePlace(place: PlaceSummary, prefs: UserPreferences): number 
   const total = wPrice + wDist + wRating;
   if (total === 0) return place.recommendation_score;
 
-  // Price score: closer to user's budget preference = higher score
-  const placePrice = PRICE_MAP[place.price_level] ?? 3;
-  const priceDiff = Math.abs(placePrice - prefs.budget);
-  const priceScore = 1 - priceDiff / 4; // max diff is 4
+  // Price score: currently treat all places as neutral since backend exposes
+  // free-form price strings (e.g. "$10–20", "CHF 30–60") without discrete levels.
+  const priceScore = 1;
 
   // Distance score: use priorities.distance as preferred max range
   const maxDist = Math.max(prefs.priorities.distance, prefs.maxDistance);

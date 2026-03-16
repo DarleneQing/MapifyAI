@@ -65,8 +65,13 @@ class PlaceService:
                 entry = dict(provider)
                 if place_id in review_map:
                     entry["review_summary"] = review_map[place_id]
+                    # Preserve Apify/raw distribution on entry["review_distribution"]
+                    # and store pipeline-derived distribution separately so the
+                    # controller can choose based on query param.
                     if review_map[place_id].get("rating_distribution") is not None:
-                        entry["review_distribution"] = review_map[place_id]["rating_distribution"]
+                        entry["review_distribution_pipeline"] = review_map[place_id][
+                            "rating_distribution"
+                        ]
                 self._place_cache[place_id] = entry
                 logger.debug("Cached place: %s", place_id)
 
@@ -112,8 +117,12 @@ class PlaceService:
             place, transit, review_summary
         )
 
-        # Use cached distribution, or compute from reviews when missing (e.g. seed data)
-        review_distribution = place.get("review_distribution")
+        # Use cached Apify/raw distribution, or compute from reviews when missing
+        # (e.g. seed data). Pipeline distribution, when present, is exposed under
+        # a separate key so the controller can select it.
+        review_distribution = place.get("review_distribution") or place.get(
+            "review_distribution_apify"
+        )
         if not review_distribution and place.get("reviews"):
             review_distribution = self._distribution_from_reviews(place["reviews"])
 
@@ -132,6 +141,10 @@ class PlaceService:
             "distance_km": place.get("distance_km"),
             "social_profiles": place.get("social_profiles", {}),
             "review_distribution": review_distribution,
+            "review_distribution_apify": review_distribution,
+            "review_distribution_pipeline": place.get(
+                "review_distribution_pipeline"
+            ),
             "popular_times": place.get("popular_times"),
             "images": place.get("images", []),
             "review_summary": review_summary,

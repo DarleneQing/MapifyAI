@@ -79,9 +79,9 @@ export default function PlaceCard({ place, rank, isActive, onSelect, onDetail }:
                       id: place.place_id,
                       name: place.name,
                       rating: place.rating,
-                      category: place.price_level || "Place",
+                      category: "Place",
                       address: place.address,
-                      priceLevel: place.price_level === "cheap" ? "$" : place.price_level === "medium" ? "$$" : "$$$",
+                      priceLevel: place.price_level || "",
                       status: place.status as "open_now" | "closing_soon" | "closed",
                       tags: place.reason_tags?.slice(0, 2) || [],
                       savedAt: "Just now",
@@ -127,10 +127,7 @@ export default function PlaceCard({ place, rank, isActive, onSelect, onDetail }:
                   {place.price_level && (
                     <>
                       <Banknote className="w-3 h-3 text-primary flex-shrink-0" />
-                      <span>
-                        {place.price_level === "low" || place.price_level === "cheap" ? "CHF $" :
-                         place.price_level === "high" ? "CHF $$$" : "CHF $$"}
-                      </span>
+                      <span>{place.price_level}</span>
                     </>
                   )}
                   {place.price_level && place.transit && <span className="text-muted-foreground/60">·</span>}

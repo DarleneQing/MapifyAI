@@ -504,6 +504,12 @@ export default function Profile() {
                                   else if (pref.key === "weight_distance") updated.maxDistance = v;
                                   else updated.priorities = { ...updated.priorities, rating: v };
                                   savePreferences(updated);
+                                  // Sync normalized weights to backend
+                                  updatePreferences({
+                                    weight_price: updated.budget / 5,
+                                    weight_distance: (updated.maxDistance - 3) / (30 - 3),
+                                    weight_rating: updated.priorities.rating / 5,
+                                  }).catch(() => {});
                                 } else {
                                   const normalized = (v - pref.min) / (pref.max - pref.min);
                                   const updated = { ...preferences, [pref.key]: normalized };

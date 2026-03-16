@@ -18,7 +18,7 @@ export default function Chat() {
   const hasAutoSent = useRef(false);
   const { preferences } = usePreferences();
   const { location } = useDeviceLocation();
-  const { results, isLoading, pipelineStage, stepDurations, startSearch, reset } = useSearchStream(preferences);
+  const { results, agentReply, isLoading, pipelineStage, stepDurations, startSearch, reset } = useSearchStream(preferences);
 
   const urlQuery = searchParams.get("q");
 
@@ -34,7 +34,7 @@ export default function Chat() {
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `I found ${results.length} places for "${currentQuery}". Here are my top recommendations:`,
+        content: agentReply || `I found ${results.length} places for "${currentQuery}". Here are my top recommendations:`,
         placeCards: results.slice(0, 4),
         showViewAll: results.length > 0,
         showPipeline: true,
@@ -42,7 +42,7 @@ export default function Chat() {
       setMessages((prev) => [...prev, assistantMsg]);
       setCurrentQuery(null);
     }
-  }, [pipelineStage, results, currentQuery, setLastSearchResults, setLastSearchQuery, setMessages, setCurrentQuery]);
+  }, [pipelineStage, results, agentReply, currentQuery, setLastSearchResults, setLastSearchQuery, setMessages, setCurrentQuery]);
 
   const processQuery = useCallback((queryText: string) => {
     if (!location) {

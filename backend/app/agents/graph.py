@@ -304,7 +304,7 @@ def _output_ranking_node(state: PlannerState) -> PlannerState:
             "name": p.get("name", ""),
             "address": p.get("address", ""),
             "distance_km": p.get("distance_km"),
-            "price_level": _price_level(p.get("price_range")),
+            "price_level": p.get("price_range", ""),
             "rating": p.get("rating"),
             "rating_count": p.get("review_count", 0),
             "recommendation_score": p.get("score"),

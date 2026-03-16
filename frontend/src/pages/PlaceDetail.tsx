@@ -10,6 +10,7 @@ import {
 import FlashDealBanner from "@/components/place/FlashDealBanner";
 import QueueIndicator from "@/components/place/QueueIndicator";
 import QueueDrawer from "@/components/place/QueueDrawer";
+import ChatDrawer from "@/components/chat/ChatDrawer";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
 import RatingDistributionChart from "@/components/place/RatingDistributionChart";
 import ReviewsList from "@/components/place/ReviewsList";
@@ -33,7 +34,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         location: { lat: 47.3785, lng: 8.5405 },
         rating: 4.9,
         rating_count: 2341,
-        price_level: "medium",
+        price_level: "$10–20",
         status: "open_now",
         opening_hours: { today_open: "07:00", today_close: "19:00", is_open_now: true },
         social_profiles: { instagram: "https://instagram.com/thegroundbrew" },
@@ -74,7 +75,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         place_id: "p2", name: "Komorebi Tables", address: "88 Oak Avenue, Midtown",
         phone: "+41 44 234 56 78", website: "https://komorebitables.ch",
         location: { lat: 47.3755, lng: 8.5445 },
-        rating: 4.7, rating_count: 1890, price_level: "medium", status: "closing_soon",
+        rating: 4.7, rating_count: 1890, price_level: "$20–40", status: "closing_soon",
         opening_hours: { today_open: "08:00", today_close: "18:00", is_open_now: true },
         social_profiles: { facebook: "https://facebook.com/komorebitables" },
         popular_times: { mon: [5, 15, 35, 60, 75, 50, 30, 15, 5], tue: [5, 20, 40, 65, 80, 55, 35, 20, 5] },
@@ -96,7 +97,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         place_id: "p3", name: "Velvet Crumb", address: "45 Elm Street, West End",
         phone: "+41 44 345 67 89", website: null,
         location: { lat: 47.3800, lng: 8.5350 },
-        rating: 4.8, rating_count: 3102, price_level: "low", status: "open_now",
+        rating: 4.8, rating_count: 3102, price_level: "$5–15", status: "open_now",
         opening_hours: { today_open: "06:30", today_close: "17:00", is_open_now: true },
         popular_times: { mon: [10, 30, 60, 85, 90, 65, 40, 20, 5] },
         detailed_characteristics: ["Artisanal sourdough", "Trending", "Takeaway friendly"],
@@ -117,7 +118,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         place_id: "p4", name: "Origin Roast", address: "200 Pine Road, Riverside",
         phone: null, website: "https://originroast.ch",
         location: { lat: 47.3745, lng: 8.5470 },
-        rating: 4.6, rating_count: 876, price_level: "low", status: "open_now",
+        rating: 4.6, rating_count: 876, price_level: "CHF 15–25", status: "open_now",
         opening_hours: { today_open: "07:30", today_close: "16:00", is_open_now: true },
         detailed_characteristics: ["Single origin", "Pour-over specialty"],
       },
@@ -137,7 +138,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         place_id: "p5", name: "The Sage Bistro", address: "Gastronomy Park, Zürich",
         phone: "+41 44 567 89 01", website: "https://sagebistro.ch",
         location: { lat: 47.3730, lng: 8.5330 },
-        rating: 4.8, rating_count: 212, price_level: "high", status: "open_now",
+        rating: 4.8, rating_count: 212, price_level: "CHF 60–90", status: "open_now",
         opening_hours: { today_open: "11:00", today_close: "23:00", is_open_now: true },
         social_profiles: { instagram: "https://instagram.com/sagebistro", facebook: "https://facebook.com/sagebistro" },
         popular_times: { fri: [5, 10, 25, 45, 70, 90, 95, 85, 60], sat: [5, 10, 30, 50, 75, 95, 95, 85, 65] },
@@ -159,7 +160,7 @@ const MOCK_DETAILS: Record<string, PlaceDetailResponse> = {
         place_id: "p6", name: "Blue Bottle Coffee", address: "299 Copper Lane, Uptown",
         phone: null, website: "https://bluebottlecoffee.com",
         location: { lat: 47.3820, lng: 8.5490 },
-        rating: 4.3, rating_count: 654, price_level: "high", status: "closed",
+        rating: 4.3, rating_count: 654, price_level: "$40–60", status: "closed",
         opening_hours: { today_open: "08:00", today_close: "17:00", is_open_now: false },
         detailed_characteristics: ["Japanese minimal", "Pour-over"],
       },
@@ -187,8 +188,6 @@ const heroGradients = [
   "from-emerald-800/80 via-emerald-700/60 to-emerald-900/80",
 ];
 
-const PRICE_DISPLAY: Record<string, string> = { low: "$", medium: "$$", high: "$$$" };
-
 const transportIcon = (type: string) => {
   switch (type) {
     case "tram": case "train": return <Train className="w-3 h-3" />;
@@ -203,8 +202,10 @@ export default function PlaceDetail() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [queueOpen, setQueueOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [showQA, setShowQA] = useState(false);
+  const [ratingMode, setRatingMode] = useState<"apify_raw" | "review_pipeline">("apify_raw");
   const [detail, setDetail] = useState<PlaceDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
@@ -233,7 +234,9 @@ export default function PlaceDetail() {
     async function fetchDetail() {
       setLoading(true);
       try {
-        const res = await getPlaceDetail(id || "", requestId || undefined);
+        const res = await getPlaceDetail(id || "", requestId || undefined, {
+          ratingMode,
+        });
         // Debug: full payload from backend for /places/{id}
         console.log("[PlaceDetail] full backend response:", JSON.stringify(res, null, 2));
         console.log("[PlaceDetail] detail.review_summary:", res.detail?.review_summary);
@@ -253,7 +256,7 @@ export default function PlaceDetail() {
     }
     fetchDetail();
     return () => { cancelled = true; };
-  }, [id, requestId]);
+  }, [id, requestId, ratingMode]);
 
   useEffect(() => {
     setImageIndex(0);
@@ -342,9 +345,9 @@ export default function PlaceDetail() {
                     id: canonicalId,
                     name: place.name,
                     rating: place.rating,
-                    category: place.price_level || "Place",
+                    category: "Place",
                     address: place.address,
-                    priceLevel: place.price_level === "cheap" ? "$" : place.price_level === "medium" ? "$$" : "$$$",
+                    priceLevel: place.price_level || "",
                     status: place.status as "open_now" | "closing_soon" | "closed",
                     tags: place.detailed_characteristics?.slice(0, 2) || [],
                     savedAt: "Just now",
@@ -429,7 +432,9 @@ export default function PlaceDetail() {
               {place.opening_hours.today_open} – {place.opening_hours.today_close}
             </span>
           )}
-          <span className="text-muted-foreground">{PRICE_DISPLAY[place.price_level] || place.price_level}</span>
+          {place.price_level && (
+            <span className="text-muted-foreground">{place.price_level}</span>
+          )}
         </div>
 
         {/* Contact & Navigation buttons */}
@@ -559,8 +564,37 @@ export default function PlaceDetail() {
         {/* Rating Distribution */}
         {rating_distribution && (
           <div className="mb-5">
-            <h2 className="text-sm font-semibold text-foreground mb-3">Rating Distribution</h2>
-            <RatingDistributionChart distribution={rating_distribution} total={place.rating_count} />
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold text-foreground">Rating Distribution</h2>
+              <div className="flex items-center rounded-full border border-border/60 bg-muted/40 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setRatingMode("apify_raw")}
+                  className={`px-2 py-1 rounded-full transition-colors ${
+                    ratingMode === "apify_raw"
+                      ? "bg-background text-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  All ratings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRatingMode("review_pipeline")}
+                  className={`px-2 py-1 rounded-full transition-colors ${
+                    ratingMode === "review_pipeline"
+                      ? "bg-background text-foreground"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  Analyzed sample
+                </button>
+              </div>
+            </div>
+            <RatingDistributionChart
+              distribution={rating_distribution}
+              total={Object.values(rating_distribution).reduce((sum, v) => sum + (v || 0), 0)}
+            />
           </div>
         )}
 
@@ -633,7 +667,7 @@ export default function PlaceDetail() {
         <div className="flex gap-3 pb-8">
           <motion.button
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate("/chat")}
+            onClick={() => setChatOpen(true)}
             className="flex-1 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold flex items-center justify-center gap-2">
             <MessageSquare className="w-4 h-4" /> Chat
           </motion.button>
@@ -651,6 +685,12 @@ export default function PlaceDetail() {
         placeName={place.name} placeId={id || ""}
         queueInfo={getQueueInfo(id || "")} userQueue={userQueue}
         onJoin={() => id && joinQueue(id, place.name)} onLeave={leaveQueue}
+      />
+      <ChatDrawer
+        isOpen={chatOpen}
+        onClose={() => setChatOpen(false)}
+        placeName={place.name}
+        placeCategory={place.detailed_characteristics?.[0] || ""}
       />
     </div>
   );

@@ -38,7 +38,10 @@ interface SavedPlacesContextValue {
 const SavedPlacesContext = createContext<SavedPlacesContextValue | null>(null);
 
 // Four places per category from Zurich seed, with mock discounts on first two per category
-const DEFAULT_SAVED: SavedPlace[] = getFourSavedPerCategory();
+const DEFAULT_SAVED: SavedPlace[] = getFourSavedPerCategory().map((p) => ({
+  ...p,
+  status: "open_now",
+}));
 
 const OLD_MOCK_NAMES = new Set(["The Sage Bistro", "The Ground Brew", "Komorebi Tables", "Velvet Crumb", "Origin Roast", "Blue Bottle Coffee"]);
 
@@ -52,7 +55,10 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("saved_places");
     if (!stored) return DEFAULT_SAVED;
     try {
-      const parsed: SavedPlace[] = JSON.parse(stored);
+      const parsed: SavedPlace[] = JSON.parse(stored).map((p: SavedPlace) => ({
+        ...p,
+        status: "open_now",
+      }));
       if (isOldMockSavedList(parsed)) {
         localStorage.setItem("saved_places", JSON.stringify(DEFAULT_SAVED));
         return DEFAULT_SAVED;

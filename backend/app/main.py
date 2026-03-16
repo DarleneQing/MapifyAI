@@ -9,7 +9,7 @@ from app.services.auth_service import AnonymousAuthService
 from app.services.marketplace_memory import InMemoryMarketplace
 from app.services.orchestrator_service import OrchestratorService
 from app.services.place_service import PlaceService
-from app.services.profile_service import InMemoryProfileService
+from app.services.profile_service import InMemoryProfileService, SupabaseProfileService
 from app.services.request_service import RequestService
 from app.services.trace import TraceService
 from app.wiring import (
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
         trace_service=trace_service,
     )
     auth_service = AnonymousAuthService()
-    profile_service = InMemoryProfileService()
+    profile_service = SupabaseProfileService() if SUPABASE_URL else InMemoryProfileService()
 
     wire_requests_controller(
         marketplace=marketplace,

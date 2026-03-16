@@ -16,7 +16,11 @@ place_service: Any | None = None
 
 
 @router.get("/{place_id}")
-async def get_place_detail(place_id: str, request_id: str | None = None):
+async def get_place_detail(
+    place_id: str,
+    request_id: str | None = None,
+    rating_mode: str | None = None,
+):
     """
     Return aggregated place detail plus the originating request_id (if any).
     
@@ -48,7 +52,7 @@ async def get_place_detail(place_id: str, request_id: str | None = None):
         "location": raw.get("location", {}),
         "rating": raw.get("rating", 0.0),
         "rating_count": raw.get("review_count", 0),
-        "price_level": _price_range_to_level(raw.get("price_range", "")),
+        "price_level": raw.get("price_range", ""),
         "status": _compute_status(raw.get("opening_hours", {})),
         "opening_hours": _format_opening_hours(raw.get("opening_hours", {})),
         "social_profiles": raw.get("social_profiles"),
@@ -69,12 +73,25 @@ async def get_place_detail(place_id: str, request_id: str | None = None):
     else:
         recommendation_reasons = []
 
+    # Rating distribution selection:
+    # - "apify_raw" (default): use Apify/raw histogram
+    # - "review_pipeline": use distribution from review_analysis pipeline
+    effective_mode = (rating_mode or "apify_raw").lower()
+    if effective_mode == "review_pipeline":
+        rating_distribution = raw.get("review_distribution_pipeline") or {}
+    else:
+        rating_distribution = (
+            raw.get("review_distribution_apify")
+            or raw.get("review_distribution")
+            or {}
+        )
+
     return {
         "request_id": request_id,
         "detail": {
             "place": place_basic,
             "review_summary": review_summary,
-            "rating_distribution": raw.get("review_distribution") or {},
+            "rating_distribution": rating_distribution,
             "questions_and_answers": None,  # Could add from Apify Q&A
             "customer_updates": None,
             "recommendation_reasons": recommendation_reasons,

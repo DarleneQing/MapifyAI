@@ -7,10 +7,15 @@ const BASE = "/api";
 
 export async function getPlaceDetail(
   placeId: string,
-  requestId?: string
+  requestId?: string,
+  options?: { ratingMode?: "apify_raw" | "review_pipeline" }
 ): Promise<PlaceDetailResponse> {
-  const qs = requestId ? `?request_id=${requestId}` : "";
-  const res = await fetch(`${BASE}/places/${placeId}${qs}`);
+  const params = new URLSearchParams();
+  if (requestId) params.set("request_id", requestId);
+  if (options?.ratingMode) params.set("rating_mode", options.ratingMode);
+  const qs = params.toString();
+  const suffix = qs ? `?${qs}` : "";
+  const res = await fetch(`${BASE}/places/${placeId}${suffix}`);
   if (!res.ok) throw new Error(`GET /places/${placeId} failed: ${res.status}`);
   return res.json();
 }

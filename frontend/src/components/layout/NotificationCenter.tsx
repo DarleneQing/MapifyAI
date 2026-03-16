@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, X, Check, CheckCheck, Zap, Users, Store } from "lucide-react";
 import type { MerchantNotification } from "@/hooks/useNotifications";
@@ -38,6 +38,7 @@ export default function NotificationCenter({
   onOpenChange,
 }: NotificationCenterProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleOpenChange = (open: boolean) => {
@@ -67,7 +68,7 @@ export default function NotificationCenter({
 
       {/* Toast Push Notification */}
       <AnimatePresence>
-        {latestPush && !isOpen && (
+        {latestPush && !isOpen && location.pathname !== "/explore" && (
           <motion.div
             initial={{ opacity: 0, y: -40, x: 0 }}
             animate={{ opacity: 1, y: 0 }}

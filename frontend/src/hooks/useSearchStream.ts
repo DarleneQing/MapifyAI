@@ -19,7 +19,7 @@ import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
 /** Backend POST stream event (progress / result / error) */
 type StreamEvent =
   | { type: "progress"; status: string; agent: string; message?: string; duration_ms?: number }
-  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[] }
+  | { type: "result"; request?: { id?: string }; results?: PlaceSummary[]; agent_reply?: string }
   | { type: "error"; message?: string };
 
 /** Map backend agent name to UI step index (0..5). Parallel agents map to their step. */
@@ -72,7 +72,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "The Ground Brew",
     address: "12 Market Street, Downtown",
     distance_km: 0.2,
-    price_level: "medium",
+    price_level: "$10–20",
     rating: 4.9,
     rating_count: 2341,
     recommendation_score: 0.95,
@@ -97,7 +97,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "Komorebi Tables",
     address: "88 Oak Avenue, Midtown",
     distance_km: 0.5,
-    price_level: "medium",
+    price_level: "$20–40",
     rating: 4.7,
     rating_count: 1890,
     recommendation_score: 0.91,
@@ -116,7 +116,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "Velvet Crumb",
     address: "45 Elm Street, West End",
     distance_km: 0.8,
-    price_level: "low",
+    price_level: "$5–15",
     rating: 4.8,
     rating_count: 3102,
     recommendation_score: 0.88,
@@ -141,7 +141,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "Origin Roast",
     address: "200 Pine Road, Riverside",
     distance_km: 0.2,
-    price_level: "low",
+    price_level: "CHF 15–25",
     rating: 4.6,
     rating_count: 876,
     recommendation_score: 0.84,
@@ -160,7 +160,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "The Sage Bistro",
     address: "Gastronomy Park, Central",
     distance_km: 1.5,
-    price_level: "high",
+    price_level: "CHF 60–90",
     rating: 4.8,
     rating_count: 212,
     recommendation_score: 0.79,
@@ -178,7 +178,7 @@ const MOCK_PLACES: PlaceSummary[] = [
     name: "Blue Bottle Coffee",
     address: "299 Copper Lane, Uptown",
     distance_km: 3.0,
-    price_level: "high",
+    price_level: "$40–60",
     rating: 4.3,
     rating_count: 654,
     recommendation_score: 0.72,
@@ -206,6 +206,7 @@ export type PipelineStage =
 
 export function useSearchStream(userPreferences?: UserPreferences | null) {
   const [results, setResults] = useState<PlaceSummary[]>([]);
+  const [agentReply, setAgentReply] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -325,6 +326,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
       closeEventSource();
       abortStream();
       setResults([]);
+      setAgentReply(null);
       setStepDurations([]);
       stepDurationsRef.current = [];
       setIsLoading(true);
@@ -380,6 +382,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
                 const req = event.request;
                 const list = event.results ?? [];
                 setRequestId(req?.id ?? null);
+                setAgentReply(event.agent_reply?.trim() || null);
                 setResults(
                   [...list].sort(
                     (a, b) =>
@@ -401,6 +404,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
         } else {
           const data = await res.json();
           setRequestId(data.request?.id ?? null);
+          setAgentReply((data.agent_reply as string | undefined)?.trim() || null);
           setResults(
             (data.results || data.offers || []).sort(
               (a: PlaceSummary, b: PlaceSummary) =>
@@ -428,6 +432,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
     closeEventSource();
     abortStream();
     setResults([]);
+    setAgentReply(null);
     setStepDurations([]);
     stepDurationsRef.current = [];
     setIsLoading(false);
@@ -438,6 +443,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
 
   return {
     results,
+    agentReply,
     isLoading,
     isStreaming,
     requestId,

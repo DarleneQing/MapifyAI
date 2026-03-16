@@ -257,7 +257,10 @@ def transform_apify_result(
             haversine_km(user_lat, user_lng, store_lat, store_lng), 2
         ),
         "social_profiles": social_profiles,
+        # Keep Apify histogram as the raw distribution; downstream services may
+        # compute additional distributions (e.g. review_analysis) alongside this.
         "review_distribution": review_distribution,
+        "review_distribution_apify": review_distribution,
         "popular_times": popular_times,
         "questions_and_answers": questions_and_answers,
         "customer_updates": customer_updates,
