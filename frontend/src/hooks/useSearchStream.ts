@@ -406,7 +406,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
           setRequestId(data.request?.id ?? null);
           setAgentReply((data.agent_reply as string | undefined)?.trim() || null);
           setResults(
-            (data.results || data.offers || []).sort(
+            (data.results || []).sort(
               (a: PlaceSummary, b: PlaceSummary) =>
                 (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
             )

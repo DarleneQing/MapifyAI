@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, MoreHorizontal, Search } from "lucide-react";
 import PlaceCard from "@/components/place/PlaceCard";
+import FlashDealBanner from "@/components/place/FlashDealBanner";
 import AgentPipeline from "@/components/chat/AgentPipeline";
 import BottomTabBar from "@/components/layout/BottomTabBar";
 import { useSearchStream, type PipelineStage } from "@/hooks/useSearchStream";
@@ -16,6 +17,51 @@ interface LocationState {
   query?: string;
   results?: PlaceSummary[];
 }
+
+type DemoDeal = {
+  id: string;
+  merchant_name: string;
+  title: string;
+  discount: string;
+  expires_at: string;
+  remaining: number;
+};
+
+// Frontend-local demo deals for display only.
+const DEMO_DEALS: DemoDeal[] = [
+  {
+    id: "demo-deal-1",
+    merchant_name: "Sage Corner Cafe",
+    title: "Lunch Set Promo",
+    discount: "20% off",
+    expires_at: "Today 18:00",
+    remaining: 6,
+  },
+  {
+    id: "demo-deal-2",
+    merchant_name: "Urban Noodle Bar",
+    title: "Happy Hour Combo",
+    discount: "Buy 2 get 1",
+    expires_at: "Today 22:00",
+    remaining: 5,
+  },
+  {
+    id: "demo-deal-3",
+    merchant_name: "Lakeview Bakery",
+    title: "Weekend Special",
+    discount: "15% off",
+    expires_at: "Sun 23:59",
+    remaining: 8,
+  },
+  {
+    id: "demo-deal-4",
+    merchant_name: "Nordic Grill",
+    title: "Early Bird Offer",
+    discount: "CHF 10 off",
+    expires_at: "Tomorrow 11:00",
+    remaining: 7,
+  },
+];
 
 export default function Recommendations() {
   const navigate = useNavigate();
@@ -155,6 +201,34 @@ export default function Recommendations() {
             <p className="text-xs mt-1">Try removing some vibe filters</p>
           </div>
         )}
+
+        {/* Separate demo-only deals section; independent from live recommendation results */}
+        <div className="mx-4 mt-4 mb-3">
+          <p className="text-[10px] font-semibold text-muted-foreground tracking-widest uppercase mb-2">
+            Featured Deals (Demo)
+          </p>
+          <div className="space-y-2">
+            {DEMO_DEALS.map((deal) => (
+              <motion.div
+                key={deal.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl border border-border/60 bg-card p-3"
+              >
+                <p className="text-sm font-semibold text-foreground">{deal.merchant_name}</p>
+                <FlashDealBanner
+                  deal={{
+                    title: deal.title,
+                    discount: deal.discount,
+                    expires_at: deal.expires_at,
+                    remaining: deal.remaining,
+                  }}
+                  variant="compact"
+                />
+              </motion.div>
+            ))}
+          </div>
+        </div>
 
         {!query && !hasPersistedResults && (
           <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
