@@ -437,48 +437,59 @@ const Index = () => {
               </p>
             </div>
 
-            {/* Vibe filter: only when search input is focused */}
-            {isFocused && (
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
-                <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} compact />
-              </div>
-            )}
-
-            {/* Search input */}
+            {/* Search area: treat greeting + vibes + input as one active region */}
             <div
-              className={`flex items-center gap-2 rounded-2xl bg-background/60 border border-border/30 px-3 py-2 transition-all ${
-                isFocused ? "ring-2 ring-primary/25 border-primary/30" : ""
-              }`}
+              tabIndex={-1}
+              onFocusCapture={() => setIsFocused(true)}
+              onBlurCapture={(e) => {
+                const next = e.relatedTarget as Node | null;
+                if (!e.currentTarget.contains(next)) {
+                  setIsFocused(false);
+                }
+              }}
+              className="space-y-2"
             >
-              <Search className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSearch(query);
-                }}
-                placeholder="Try &quot;best coffee nearby&quot;..."
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
-              />
-              <div className="flex items-center gap-1">
-                <button className="p-1.5 rounded-full hover:bg-muted/50 transition-colors flex-shrink-0">
-                  <Mic className="w-4 h-4 text-muted-foreground/50" />
-                </button>
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => handleSearch(query)}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                    query.trim()
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-primary/15 text-primary"
-                  }`}
-                  disabled={!query.trim()}
-                >
-                  <ArrowRight className="w-4 h-4" />
-                </motion.button>
+              {/* Vibe filter: only when search area is active */}
+              {isFocused && (
+                <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+                  <VibeFilter activeVibes={activeVibes} onToggle={handleVibeToggle} compact />
+                </div>
+              )}
+
+              {/* Search input */}
+              <div
+                className={`flex items-center gap-2 rounded-2xl bg-background/60 border border-border/30 px-3 py-2 transition-all ${
+                  isFocused ? "ring-2 ring-primary/25 border-primary/30" : ""
+                }`}
+              >
+                <Search className="w-4 h-4 text-muted-foreground/50 flex-shrink-0" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSearch(query);
+                  }}
+                  placeholder="Try &quot;best coffee nearby&quot;..."
+                  className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
+                />
+                <div className="flex items-center gap-1">
+                  <button className="p-1.5 rounded-full hover:bg-muted/50 transition-colors flex-shrink-0">
+                    <Mic className="w-4 h-4 text-muted-foreground/50" />
+                  </button>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleSearch(query)}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                      query.trim()
+                        ? "bg-primary text-primary-foreground shadow-md"
+                        : "bg-primary/15 text-primary"
+                    }`}
+                    disabled={!query.trim()}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </motion.button>
+                </div>
               </div>
             </div>
           </div>

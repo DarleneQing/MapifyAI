@@ -49,6 +49,7 @@ DISTRICTS: list[tuple[str, float, float]] = [
   ("Altstetten", 47.3850, 8.4772),
   ("Oerlikon", 47.4167, 8.5500),
   ("Stadelhofen", 47.366666666667, 8.5486111111111),
+  ("Hardbrücke", 47.3850, 8.5170),
 ]
 
 RADIUS_KM = 2.0

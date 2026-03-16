@@ -51,7 +51,7 @@ insert into public.stores (
 ('ChIJ_demo_restaurant_03', 'Clouds Restaurant', 'restaurant', array['fine_dining', 'international'],
  st_makepoint(8.5310, 47.3870)::geography, 'Maagplatz 5', 'Zürich',
  4.7, 892, 4, '{"monday": null, "tuesday": {"open": "18:00", "close": "23:00"}, "wednesday": {"open": "18:00", "close": "23:00"}, "thursday": {"open": "18:00", "close": "23:00"}, "friday": {"open": "18:00", "close": "24:00"}, "saturday": {"open": "18:00", "close": "24:00"}, "sunday": null}'::jsonb,
- false, true, now()),
+ true, true, now()),
 
 -- Cafes
 ('ChIJ_demo_cafe_01', 'Sprüngli Confiserie', 'cafe', array['chocolate', 'pastry'],
