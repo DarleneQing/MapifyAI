@@ -83,7 +83,7 @@ def _normalised_weights(prefs: UserPreferences) -> tuple[float, float, float]:
     """Extract and normalize weights. If total <= 0, fallback to equal weights."""
     # Keep ranking aligned with explanation semantics under invalid negative inputs.
     wp = max(0.0, float(getattr(prefs, "weight_price", 0.0)))
-    wd = max(0.0, float(getattr(prefs, "weight_travel", 0.0)))
+    wd = max(0.0, float(getattr(prefs, "weight_distance", 0.0)))
     wr = max(0.0, float(getattr(prefs, "weight_rating", 0.0)))
     total = wp + wd + wr
     if total <= 0:

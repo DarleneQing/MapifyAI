@@ -87,7 +87,7 @@ def test_create_request_non_stream_uses_services(monkeypatch):
         "location": {"lat": 47.378, "lng": 8.54},
         "preferences": {
             "weight_price": 0.6,
-            "weight_travel": 0.2,
+            "weight_distance": 0.2,
             "weight_rating": 0.2,
         },
     }
@@ -358,7 +358,7 @@ def test_get_me_uses_profile_service(monkeypatch):
             calls["get_or_create_user_preferences_args"] = user_id
             return {
                 "weight_price": 0.5,
-                "weight_travel": 0.25,
+                "weight_distance": 0.25,
                 "weight_rating": 0.25,
             }
 
@@ -401,7 +401,7 @@ def test_update_preferences_uses_profile_service(monkeypatch):
 
     prefs_payload = {
         "weight_price": 0.3,
-        "weight_travel": 0.4,
+        "weight_distance": 0.4,
         "weight_rating": 0.3,
     }
 
@@ -410,13 +410,13 @@ def test_update_preferences_uses_profile_service(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["weight_price"] == pytest.approx(0.3)
-    assert body["weight_travel"] == pytest.approx(0.4)
+    assert body["weight_distance"] == pytest.approx(0.4)
     assert body["weight_rating"] == pytest.approx(0.3)
     assert calls.get("auth_user_id_called") is True
     user_id, prefs_obj = calls["update_user_preferences_args"]
     assert user_id == "user-123"
     assert prefs_obj.weight_price == pytest.approx(0.3)
-    assert prefs_obj.weight_travel == pytest.approx(0.4)
+    assert prefs_obj.weight_distance == pytest.approx(0.4)
     assert prefs_obj.weight_rating == pytest.approx(0.3)
 
 

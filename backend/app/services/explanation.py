@@ -40,7 +40,7 @@ def _normalised_weights(prefs: UserPreferences | None) -> dict[str, float]:
         return {"price": 1.0 / 3.0, "distance": 1.0 / 3.0, "rating": 1.0 / 3.0}
 
     wp = max(0.0, float(getattr(prefs, "weight_price", 0.0)))
-    wd = max(0.0, float(getattr(prefs, "weight_travel", 0.0)))
+    wd = max(0.0, float(getattr(prefs, "weight_distance", 0.0)))
     wr = max(0.0, float(getattr(prefs, "weight_rating", 0.0)))
     total = wp + wd + wr
     if total <= 0:
