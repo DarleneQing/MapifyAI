@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useChatContext } from "@/contexts/ChatContext";
+import { getSeedCoffeeSuggestions } from "@/data/providers";
 
 type Message = {
   id: string;
@@ -70,15 +71,14 @@ const MERCHANT_RESPONSES: { match: string; text: string; tips?: string[] }[] = [
   },
 ];
 
+const SEED_COFFEE_PLACES: PlaceCardData[] = getSeedCoffeeSuggestions(3);
+
 // ── Consumer AI mock responses ──
 const CONSUMER_RESPONSES: { match: string; text: string; places?: PlaceCardData[] }[] = [
   {
     match: "coffee",
     text: "I found some great coffee spots near you! Here are my top picks:",
-    places: [
-      { id: "p1", name: "The Ground Brew", rating: 4.9, category: "Coffee", address: "12 Market Street" },
-      { id: "p3", name: "Velvet Crumb", rating: 4.8, category: "Bakery & Coffee", address: "45 Elm Street" },
-    ],
+    places: SEED_COFFEE_PLACES,
   },
   {
     match: "restaurant",

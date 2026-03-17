@@ -23,6 +23,9 @@ export interface ZurichProvider {
 
 const RAW = zurichProvidersJson as ZurichProvider[];
 
+// Demo override: force all seed-derived places to show Open in UI.
+const SEED_FORCE_OPEN = true;
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function getTodayKey(): (typeof DAY_KEYS)[number] {
@@ -37,6 +40,7 @@ function parseTime(s: string): number {
 
 /** Compute open_now | closing_soon | closed from opening_hours. */
 function computeStatus(oh: Record<string, string | null> | undefined): "open_now" | "closing_soon" | "closed" {
+  if (SEED_FORCE_OPEN) return "open_now";
   if (!oh) return "open_now";
   const today = getTodayKey();
   const range = oh[today];
@@ -158,12 +162,12 @@ function openingHoursToday(oh: Record<string, string | null> | undefined): Place
   if (!oh) return null;
   const today = getTodayKey();
   const range = oh[today];
-  if (!range) return { today_open: "—", today_close: "—", is_open_now: false };
+  if (!range) return { today_open: "—", today_close: "—", is_open_now: SEED_FORCE_OPEN ? true : false };
   const [openStr, closeStr] = range.split("-").map((s) => s?.trim() ?? "");
   return {
     today_open: openStr || "—",
     today_close: closeStr || "—",
-    is_open_now: computeStatus(oh) === "open_now",
+    is_open_now: SEED_FORCE_OPEN ? true : computeStatus(oh) === "open_now",
   };
 }
 
