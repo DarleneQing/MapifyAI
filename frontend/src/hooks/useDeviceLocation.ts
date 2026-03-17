@@ -7,16 +7,30 @@ const DEVICE_ID_KEY = "localbid_device_id";
 // Default location: Zurich, Switzerland
 const DEFAULT_LOCATION: LatLng = { lat: 47.3769, lng: 8.5417 };
 
+// Temporary override: set to a LatLng to force this location (no browser/IP). Set to null to use normal flow.
+const TEMPORARY_OVERRIDE_LOCATION: LatLng | null = { lat: 47.36667, lng: 8.54861 }; // Stadelhofen, Zurich
+
 // Module-level singleton cache - shared across all hook instances
-let cachedLocation: LatLng | null = null;
+let cachedLocation: LatLng | null = TEMPORARY_OVERRIDE_LOCATION;
 let locationPromise: Promise<LatLng> | null = null;
 let deviceId: string | null = null;
+
+function generateDeviceId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // e.g. non-secure context (HTTP on phone) where randomUUID can throw
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
 
 function getOrCreateDeviceId(): string {
   if (deviceId) return deviceId;
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = generateDeviceId();
     localStorage.setItem(DEVICE_ID_KEY, id);
   }
   deviceId = id;
@@ -63,6 +77,14 @@ function getBrowserLocation(): Promise<LatLng> {
 }
 
 async function fetchLocationOnce(): Promise<LatLng> {
+  // Temporary override: use fixed location (no browser, no IP)
+  if (TEMPORARY_OVERRIDE_LOCATION) {
+    console.info("[Geolocation] Using temporary override: Stadelhofen");
+    cachedLocation = TEMPORARY_OVERRIDE_LOCATION;
+    syncLocationToBackend(TEMPORARY_OVERRIDE_LOCATION);
+    return TEMPORARY_OVERRIDE_LOCATION;
+  }
+
   // Return cached location if available
   if (cachedLocation) {
     return cachedLocation;
@@ -77,7 +99,7 @@ async function fetchLocationOnce(): Promise<LatLng> {
   locationPromise = (async () => {
     console.info("[Geolocation] Fetching location (one-time)...");
 
-    // Try browser geolocation first if in secure context
+    // Try browser geolocation first if in secure context (IP fallback disabled when override was used)
     if (navigator.geolocation && isSecureContext()) {
       const browserLoc = await getBrowserLocation();
       if (browserLoc.lat !== DEFAULT_LOCATION.lat || browserLoc.lng !== DEFAULT_LOCATION.lng) {

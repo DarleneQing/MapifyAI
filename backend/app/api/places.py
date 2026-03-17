@@ -16,11 +16,7 @@ place_service: Any | None = None
 
 
 @router.get("/{place_id}")
-async def get_place_detail(
-    place_id: str,
-    request_id: str | None = None,
-    rating_mode: str | None = None,
-):
+async def get_place_detail(place_id: str, request_id: str | None = None):
     """
     Return aggregated place detail plus the originating request_id (if any).
     
@@ -73,18 +69,9 @@ async def get_place_detail(
     else:
         recommendation_reasons = []
 
-    # Rating distribution selection:
-    # - "apify_raw" (default): use Apify/raw histogram
-    # - "review_pipeline": use distribution from review_analysis pipeline
-    effective_mode = (rating_mode or "apify_raw").lower()
-    if effective_mode == "review_pipeline":
-        rating_distribution = raw.get("review_distribution_pipeline") or {}
-    else:
-        rating_distribution = (
-            raw.get("review_distribution_apify")
-            or raw.get("review_distribution")
-            or {}
-        )
+    # Rating distribution: use analyzed reviews (review_analysis pipeline) only.
+    # Falls back to empty if pipeline distribution not available (e.g. place not from pipeline).
+    rating_distribution = raw.get("review_distribution_pipeline") or {}
 
     return {
         "request_id": request_id,

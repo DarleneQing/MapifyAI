@@ -219,7 +219,7 @@ export default function AIChatOverlay() {
 
   // Show FAB on merchant dashboard too
   const hideFAB =
-    !isMerchant && (location.pathname === "/" || location.pathname === "/chat");
+    !isMerchant && (location.pathname === "/" || location.pathname === "/chat" || location.pathname === "/landing");
   const showExploreHide = location.pathname === "/" && !isMerchant;
   
   // Consumers: always use the /chat page (ChatContext) so conversation is kept. Merchants: open overlay.

@@ -14,7 +14,6 @@ import ChatDrawer from "@/components/chat/ChatDrawer";
 import { useQueueStatus } from "@/hooks/useQueueStatus";
 import RatingDistributionChart from "@/components/place/RatingDistributionChart";
 import ReviewsList from "@/components/place/ReviewsList";
-import PopularTimesChart from "@/components/place/PopularTimesChart";
 import type { PlaceDetail as PlaceDetailType, FlashDeal, PlaceDetailResponse } from "@/types";
 import { getPlaceDetail } from "@/services/api";
 import { useSavedPlaces } from "@/contexts/SavedPlacesContext";
@@ -205,7 +204,6 @@ export default function PlaceDetail() {
   const [chatOpen, setChatOpen] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [showQA, setShowQA] = useState(false);
-  const [ratingMode, setRatingMode] = useState<"apify_raw" | "review_pipeline">("apify_raw");
   const [detail, setDetail] = useState<PlaceDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [imageIndex, setImageIndex] = useState(0);
@@ -228,35 +226,38 @@ export default function PlaceDetail() {
   }, [id]);
   const placeReviews = useMemo(() => getReviewsForPlace(id || ""), [id]);
 
-  // Try fetching from API, fall back to crawled provider data or mock
+  // Use seed/provider data first for mock stores (home page, explore). Only call API when we have no seed data.
   useEffect(() => {
     let cancelled = false;
+    const placeId = id || "";
+    const fromProvider = placeId ? getPlaceDetailFromProvider(placeId) : null;
+    if (fromProvider) {
+      setLoading(true);
+      if (!cancelled) {
+        setDetail(fromProvider);
+        setLoading(false);
+      }
+      return () => { cancelled = true; };
+    }
     async function fetchDetail() {
       setLoading(true);
       try {
-        const res = await getPlaceDetail(id || "", requestId || undefined, {
-          ratingMode,
-        });
-        // Debug: full payload from backend for /places/{id}
-        console.log("[PlaceDetail] full backend response:", JSON.stringify(res, null, 2));
-        console.log("[PlaceDetail] detail.review_summary:", res.detail?.review_summary);
+        const res = await getPlaceDetail(placeId, requestId || undefined);
         if (!cancelled) {
           setDetail(res.detail);
           setLoading(false);
         }
       } catch {
-        // Fall back to crawled Zurich provider data, then legacy mock
-        const fromProvider = id ? getPlaceDetailFromProvider(id) : null;
-        const fallback = fromProvider ?? MOCK_DETAILS[id || ""]?.detail ?? MOCK_DETAILS.p5?.detail;
+        const fallback = MOCK_DETAILS[placeId]?.detail ?? MOCK_DETAILS.p5?.detail;
         if (!cancelled) {
-          setDetail(fromProvider ?? fallback);
+          setDetail(fallback);
           setLoading(false);
         }
       }
     }
     fetchDetail();
     return () => { cancelled = true; };
-  }, [id, requestId, ratingMode]);
+  }, [id, requestId]);
 
   useEffect(() => {
     setImageIndex(0);
@@ -561,48 +562,14 @@ export default function PlaceDetail() {
           )}
         </div>
 
-        {/* Rating Distribution */}
-        {rating_distribution && (
+        {/* Rating Distribution (analyzed reviews only) */}
+        {rating_distribution && Object.keys(rating_distribution).length > 0 && (
           <div className="mb-5">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-sm font-semibold text-foreground">Rating Distribution</h2>
-              <div className="flex items-center rounded-full border border-border/60 bg-muted/40 text-[10px]">
-                <button
-                  type="button"
-                  onClick={() => setRatingMode("apify_raw")}
-                  className={`px-2 py-1 rounded-full transition-colors ${
-                    ratingMode === "apify_raw"
-                      ? "bg-background text-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  All ratings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRatingMode("review_pipeline")}
-                  className={`px-2 py-1 rounded-full transition-colors ${
-                    ratingMode === "review_pipeline"
-                      ? "bg-background text-foreground"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  Analyzed sample
-                </button>
-              </div>
-            </div>
+            <h2 className="text-sm font-semibold text-foreground mb-3">Rating Distribution</h2>
             <RatingDistributionChart
               distribution={rating_distribution}
               total={Object.values(rating_distribution).reduce((sum, v) => sum + (v || 0), 0)}
             />
-          </div>
-        )}
-
-        {/* Popular Times */}
-        {place.popular_times && Object.keys(place.popular_times).length > 0 && (
-          <div className="mb-5">
-            <h2 className="text-sm font-semibold text-foreground mb-3">Popular Times</h2>
-            <PopularTimesChart data={place.popular_times} />
           </div>
         )}
 

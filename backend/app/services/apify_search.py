@@ -29,9 +29,8 @@ def search_places(
         "language": "en",
         "scrapePlaceDetailPage": True,
         "skipClosedPlaces": True,
-        "reviewsSort": "mostRelevant",
-        "maxReviews": 10,
-        "maxImages": 4,
+        "maxImages": 1,
+        "maxReviews": 0,
         "customGeolocation": {
             "type": "Point",
             "coordinates": [str(lng), str(lat)],
