@@ -526,7 +526,7 @@ export default function PlaceDetail() {
           </div>
 
           <div className="mb-3">
-            <p className="text-[10px] font-semibold tracking-widest uppercase text-amber-600 mb-2">CONSIDERATIONS</p>
+            <p className="text-[10px] font-semibold tracking-widest uppercase text-amber-600 mb-2">LIMITATIONS</p>
             {review_summary.disadvantages.map((c, i) => (
               <div key={i} className="flex items-start gap-2 mb-1.5">
                 <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
