@@ -10,7 +10,7 @@ from apify_client import ApifyClient
 from app.config import APIFY_API_TOKEN
 
 ACTOR_ID = "compass/crawler-google-places"
-DEFAULT_MAX_RESULTS = 10
+DEFAULT_MAX_RESULTS = 6
 
 
 def search_places(
