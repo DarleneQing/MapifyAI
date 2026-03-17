@@ -14,9 +14,15 @@
 
 const RAW_BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-// Normalize: strip trailing slash so we can safely append "/api", "/health", etc.
+// Normalize: strip trailing slashes so we can safely append paths.
 const NORMALIZED_BACKEND_URL = RAW_BACKEND_URL.replace(/\/+$/, "");
 
 export const BACKEND_BASE = NORMALIZED_BACKEND_URL;
-export const API_BASE = `${NORMALIZED_BACKEND_URL}/api` || "/api";
+
+// If the user configured VITE_BACKEND_URL with a trailing "/api", avoid "/api/api".
+export const API_BASE = NORMALIZED_BACKEND_URL
+  ? NORMALIZED_BACKEND_URL.endsWith("/api")
+    ? NORMALIZED_BACKEND_URL
+    : `${NORMALIZED_BACKEND_URL}/api`
+  : "/api";
 

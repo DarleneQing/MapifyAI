@@ -324,6 +324,18 @@ export function getOneSavedPerCategory(): SavedPlaceFromSeed[] {
 const SAVED_CATEGORY_ORDER = ["restaurant", "cafe", "bar", "haircut", "massage", "dentist", "repair", "general"] as const;
 const PER_CATEGORY = 4;
 
+/** Queue-status map for seed places (p001–p010, p081–p082). Matches useQueueStatus MOCK_QUEUE_DATA. */
+const QUEUE_LEVEL_MAP: Record<string, "low" | "medium" | "busy"> = {
+  p001: "low", p002: "medium", p003: "busy", p004: "low", p005: "medium",
+  p006: "busy", p007: "low", p008: "medium", p009: "busy", p010: "low",
+  p081: "medium", p082: "busy",
+};
+
+/** Queue level for a place id — only for seed queue stores (p001–p010, p081–p082). */
+export function getQueueLevelForPlaceId(placeId: string): "low" | "medium" | "busy" | null {
+  return QUEUE_LEVEL_MAP[placeId] ?? null;
+}
+
 /** Place IDs that have (mock) discounts only — no overlap with queue (p001–p010, p081–p082). */
 const DISCOUNT_PLACE_IDS = [
   "p011", "p012", "p013", "p014", "p015", "p016", "p017",

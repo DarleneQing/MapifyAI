@@ -15,7 +15,7 @@ import type { PlaceSummary, LatLng } from "@/types";
 import { createSearchRequest } from "@/services/api";
 import { sortByPreferences } from "@/lib/preferenceScoring";
 import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
-import { getExplorePlaces } from "@/data/providers";
+import { getExplorePlaces, getDealForPlaceId, getQueueLevelForPlaceId } from "@/data/providers";
 
 /** Backend POST stream event (progress / result / error) */
 type StreamEvent =
@@ -114,6 +114,26 @@ function buildMockPlacesFromSeed(count = 6): PlaceSummary[] {
 }
 
 const MOCK_PLACES: PlaceSummary[] = buildMockPlacesFromSeed(6);
+
+/**
+ * Enrich live backend results with seed deal/queue data so PlaceCards always
+ * show the same default badges whether the backend is online or offline.
+ */
+function enrichWithSeedDefaults(places: PlaceSummary[]): PlaceSummary[] {
+  return places.map((p) => {
+    if (p.flash_deal != null && p.queue_status != null) return p;
+    const enriched = { ...p };
+    if (!enriched.flash_deal) {
+      const deal = getDealForPlaceId(p.place_id);
+      if (deal) enriched.flash_deal = deal;
+    }
+    if (!enriched.queue_status) {
+      const level = getQueueLevelForPlaceId(p.place_id);
+      if (level) enriched.queue_status = level;
+    }
+    return enriched;
+  });
+}
 
 /** SSE pipeline stage for UI progress display */
 export type PipelineStage =
@@ -306,7 +326,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
                 setRequestId(req?.id ?? null);
                 setAgentReply(event.agent_reply?.trim() || null);
                 setResults(
-                  [...list].sort(
+                  enrichWithSeedDefaults([...list]).sort(
                     (a, b) =>
                       (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
                   )
@@ -328,7 +348,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
           setRequestId(data.request?.id ?? null);
           setAgentReply((data.agent_reply as string | undefined)?.trim() || null);
           setResults(
-            (data.results || []).sort(
+            enrichWithSeedDefaults(data.results || []).sort(
               (a: PlaceSummary, b: PlaceSummary) =>
                 (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
             )
