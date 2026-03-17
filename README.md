@@ -1,54 +1,100 @@
-## This project is intended for GenAI Zurich Hackathon 2026
+# Mapify AI
 
+> A multi-agent city assistant that turns natural-language intent into personalized, explainable local recommendations.
 
-## Agent Pipeline
+🌐 [Website](https://mapify-ai-rose.vercel.app/landing) · 🎮 Demo · 🎥 Video
 
-The pipeline runs as a LangGraph state machine with parallel branches. Each box is an agent node; arrows show data flow.
-
-`evaluation_agent` and `review_agent` run in parallel — both receive the candidate list from `transit_calculator` simultaneously. LangGraph merges their outputs before `orchestrator_agent` runs.
-
-<img src="agent_workflow.png" alt="Agent Workflow" width="300"/>
-
-
-
-
-
-| Agent | Role |
-|---|---|
-| **intent_parser** | Takes the user's raw text and calls GPT-4o to extract structured fields: `category`, `requested_time`, `radius_km`, and `constraints`. |
-| **crawling_search** | Calls Apify Google Maps scraper to find real businesses near the user. Filters by opening hours. Falls back to local seed file if no Apify token. |
-| **transit_calculator** | Calls SBB public transit API to get real ETA for each candidate. Marks providers as `reachable`, `closing_soon`, or `unreachable`. Drops unreachable ones. Retries with wider radius if no candidates remain. |
-| **evaluation_agent** | Scores every reachable provider on a weighted sum of price, distance, and rating — each normalised to [0, 1]. |
-| **review_agent** | Fetches up to 10 real Google reviews per provider (via Apify) and uses GPT-4o to summarise into advantages and disadvantages. Falls back to LLM-generated summaries when reviews are unavailable. |
-| **orchestrator_agent** | LLM brain: reads user intent + hard scores + review summaries and generates a `one_sentence_recommendation` for each of the top 10 places. |
-| **output_ranking** | Formats the final top-10 list into `PlaceSummary[]` for the API response. |
+![homepage](docs/images/homepage.png)
 
 ---
 
-## Stack
+## Overview
 
-| Layer | Tech |
-|---|---|
-| Framework | FastAPI (Python 3.11+) |
-| Agent orchestration | LangGraph |
-| LLM | OpenAI GPT-4o |
-| Web scraping | Apify (Google Maps) |
-| Transit | SBB OpenData API |
-| Database | Supabase (PostgreSQL) — optional, falls back to in-memory |
+Mapify AI rethinks how people explore cities.
+
+Instead of browsing static map results, users can describe their needs in natural language (e.g., *“dinner near ETH tonight under CHF 30”*), and the system automatically retrieves, filters, ranks, and explains suitable places.
+
+At its core, Mapify AI is a **map-based multi-agent system** that integrates heterogeneous signals — including travel time, opening hours, pricing, ratings, and reviews — into a structured decision-making pipeline.
 
 ---
 
-## API
+## System
 
-`POST /api/requests/` — run the full pipeline, returns top-10 recommendations
+The system is implemented as a **LangGraph-based multi-agent pipeline**, where each stage performs a specific reasoning step:
 
-```json
-{
-  "query": "find a good haircut near me",
-  "location": { "lat": 47.3769, "lng": 8.5417 }
-}
-```
+User Query
+ → Intent Parsing
+ → Information Retrieval
+ → Transit Filtering
+ → Score Calculation and Ranking & Review Analysis
+ → Recommendation Synthesis
 
-Response: `{ "request": {...}, "results": [PlaceSummary x10] }`
+A key design choice is the separation between:
 
-See `backend/README.md` for full setup instructions.
+- **evaluation (scoring)**  
+- **review understanding (textual signals)**  
+
+which are later merged by an orchestrator before generating final recommendations.
+
+This modular design enables:
+
+- interpretable intermediate states  
+- flexible extension of agents  
+- clearer debugging and evaluation  
+
+---
+
+## Key Capabilities
+
+- Natural-language query → structured constraints  
+- Multi-factor ranking (price, travel time, rating)  
+- User-controlled preference weighting  
+- Explainable recommendations with reasoning  
+- Real-time pipeline execution (streaming)  
+
+---
+
+## Demo
+
+- Website: https://mapify-ai-rose.vercel.app/landing  
+- Interactive frontend demo available  
+
+---
+
+## Architecture
+
+![architecture](docs/images/architecture.png)
+
+The system consists of:
+
+- a React frontend for interaction and visualization  
+- a FastAPI + LangGraph backend for multi-agent orchestration  
+- external services (LLM, Google Maps via Apify, transport APIs)  
+
+---
+
+## Limitations
+
+This is a hackathon prototype:
+
+- Merchant-side features are frontend-only  
+- Some backend modules are partially scaffolded  
+- External APIs are required for full functionality  
+
+---
+
+## Future Work
+
+- Full marketplace integration (merchant ↔ user loop)  
+- Learning-based personalization  
+- Improved retrieval beyond seed data  
+- Unified streaming architecture  
+
+---
+
+## Contributors
+
+- Deqing Song
+- Qing Dai
+- Yuqing Huang
+- Yuan Yu
