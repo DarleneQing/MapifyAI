@@ -4,7 +4,7 @@
 
 🌐 [Website](https://mapify-ai-rose.vercel.app/landing) · 🎮 Demo · 🎥 Video
 
-![homepage](docs/images/homepage.png)
+![homepage](doc/images/homepage.png)
 
 ---
 
@@ -63,7 +63,7 @@ This modular design enables:
 
 ## Architecture
 
-![architecture](docs/images/architecture.png)
+![architecture](doc/images/architecture.png)
 
 The system consists of:
 
