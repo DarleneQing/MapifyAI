@@ -2,19 +2,18 @@
  * Offers API — contract §6.
  */
 import type { SubmitOfferBody, OffersResponse, OfferSseEvent } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 export async function getOffers(
   requestId: string
 ): Promise<OffersResponse> {
-  const res = await fetch(`${BASE}/requests/${requestId}/offers`);
+  const res = await fetch(`${API_BASE}/requests/${requestId}/offers`);
   if (!res.ok) throw new Error(`GET /requests/${requestId}/offers failed: ${res.status}`);
   return res.json();
 }
 
 export async function submitOffer(payload: SubmitOfferBody) {
-  const res = await fetch(`${BASE}/offers/`, {
+  const res = await fetch(`${API_BASE}/offers/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -27,7 +26,7 @@ export async function updateOffer(
   offerId: string,
   payload: Record<string, unknown>
 ) {
-  const res = await fetch(`${BASE}/offers/${offerId}`, {
+  const res = await fetch(`${API_BASE}/offers/${offerId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -41,7 +40,7 @@ export function subscribeOffersStream(
   onEvent: (event: OfferSseEvent) => void,
   onError?: (err: Event) => void
 ): EventSource {
-  const es = new EventSource(`${BASE}/requests/${requestId}/offers/stream`);
+  const es = new EventSource(`${API_BASE}/requests/${requestId}/offers/stream`);
 
   (["offer_created", "offer_updated"] as const).forEach((type) => {
     es.addEventListener(type, (e: MessageEvent) => {

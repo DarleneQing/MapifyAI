@@ -15,7 +15,7 @@ def test_normalise_basic():
 
 
 def test_rank_prefers_cheaper():
-    prefs = UserPreferences(weight_price=1.0, weight_travel=0.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=1.0, weight_distance=0.0, weight_rating=0.0)
     providers = [
         {"id": "a", "price": 80, "distance_km": 1.0, "rating": 4.5},
         {"id": "b", "price": 30, "distance_km": 1.0, "rating": 4.5},
@@ -25,7 +25,7 @@ def test_rank_prefers_cheaper():
 
 
 def test_rank_prefers_closer_when_distance_weight_high():
-    prefs = UserPreferences(weight_price=0.0, weight_travel=1.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=0.0, weight_distance=1.0, weight_rating=0.0)
     providers = [
         {"id": "far", "price": 30, "distance_km": 5.0, "rating": 4.5},
         {"id": "near", "price": 30, "distance_km": 1.0, "rating": 4.5},
@@ -54,7 +54,7 @@ def test_rank_uses_price_range_midpoint_when_price_missing():
         {"id": "a", "price_range": "CHF 80-100", "distance_km": 1.0, "rating": 4.5},
         {"id": "b", "price_range": "CHF 20–40", "distance_km": 1.0, "rating": 4.5},
     ]
-    prefs = UserPreferences(weight_price=1.0, weight_travel=0.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=1.0, weight_distance=0.0, weight_rating=0.0)
     ranked = rank_offers(providers, prefs)
     assert ranked[0]["id"] == "b"
     assert ranked[0]["price"] == 30.0
@@ -65,7 +65,7 @@ def test_rank_clamps_negative_weights_to_zero_semantics():
         {"id": "near", "price": 50, "distance_km": 1.0, "rating": 4.0},
         {"id": "far", "price": 50, "distance_km": 5.0, "rating": 4.0},
     ]
-    prefs = UserPreferences(weight_price=-1.0, weight_travel=1.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=-1.0, weight_distance=1.0, weight_rating=0.0)
 
     ranked = rank_offers(providers, prefs)
     assert ranked[0]["id"] == "near"
@@ -74,7 +74,7 @@ def test_rank_clamps_negative_weights_to_zero_semantics():
 def test_explain_offer_returns_three_and_includes_weight_reason():
     offer = {"price": 35, "distance_km": 0.8, "rating": 4.9}
     breakdown = {"price_score": 0.9, "travel_score": 0.7, "rating_score": 0.8}
-    prefs = UserPreferences(weight_price=1.0, weight_travel=0.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=1.0, weight_distance=0.0, weight_rating=0.0)
 
     reasons = explain_offer(offer, offer, breakdown, prefs)
     assert len(reasons) == 3
@@ -124,7 +124,7 @@ def test_explain_offer_formats_numeric_time_label():
 def test_priority_reason_not_added_when_priority_dimension_is_not_strongest():
     offer = {"price": 80, "distance_km": 0.5, "rating": 4.8}
     breakdown = {"price_score": 0.1, "travel_score": 0.9, "rating_score": 0.9}
-    prefs = UserPreferences(weight_price=0.5, weight_travel=0.3, weight_rating=0.2)
+    prefs = UserPreferences(weight_price=0.5, weight_distance=0.3, weight_rating=0.2)
 
     reasons = explain_offer(offer, offer, breakdown, prefs)
     assert all("Matches your priority:" not in r for r in reasons)
@@ -132,7 +132,7 @@ def test_priority_reason_not_added_when_priority_dimension_is_not_strongest():
 
 def test_missing_price_gives_hard_penalty_score():
     """Provider with no price/price_range receives price_score == 0.0 and price == None."""
-    prefs = UserPreferences(weight_price=1.0, weight_travel=0.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=1.0, weight_distance=0.0, weight_rating=0.0)
     providers = [{"id": "a", "distance_km": 1.0, "rating": 4.0}]
     ranked = rank_offers(providers, prefs)
     assert ranked[0]["price"] is None
@@ -141,7 +141,7 @@ def test_missing_price_gives_hard_penalty_score():
 
 def test_missing_price_does_not_pollute_known_price_normalization():
     """Unknown-price provider does not distort min/max used by priced providers."""
-    prefs = UserPreferences(weight_price=1.0, weight_travel=0.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=1.0, weight_distance=0.0, weight_rating=0.0)
     providers = [
         {"id": "cheap",    "price": 20.0, "distance_km": 1.0, "rating": 4.0},
         {"id": "expensive", "price": 80.0, "distance_km": 1.0, "rating": 4.0},
@@ -159,7 +159,7 @@ def test_missing_price_does_not_pollute_known_price_normalization():
 
 def test_travel_prefers_commute_time_when_available():
     """When commute_time_minutes is present, it drives travel ranking (default TRAVEL_MODE)."""
-    prefs = UserPreferences(weight_price=0.0, weight_travel=1.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=0.0, weight_distance=1.0, weight_rating=0.0)
     providers = [
         # Short commute, large distance — should win in commute_time mode
         {"id": "fast", "price": 50, "commute_time_minutes": 5,  "distance_km": 10.0, "rating": 4.0},
@@ -172,7 +172,7 @@ def test_travel_prefers_commute_time_when_available():
 
 def test_travel_falls_back_to_distance_when_commute_missing():
     """Absent commute_time_minutes causes fallback to distance_km (commute_time mode)."""
-    prefs = UserPreferences(weight_price=0.0, weight_travel=1.0, weight_rating=0.0)
+    prefs = UserPreferences(weight_price=0.0, weight_distance=1.0, weight_rating=0.0)
     providers = [
         {"id": "near", "price": 50, "distance_km": 1.0, "rating": 4.0},
         {"id": "far",  "price": 50, "distance_km": 8.0, "rating": 4.0},

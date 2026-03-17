@@ -74,7 +74,7 @@ class Offer(BaseModel):
 
 class UserPreferences(BaseModel):
     weight_price: float = 0.33
-    weight_travel: float = 0.33
+    weight_distance: float = 0.33
     weight_rating: float = 0.34
 
 

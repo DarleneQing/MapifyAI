@@ -21,6 +21,7 @@ import MerchantDashboard from "./pages/MerchantDashboard";
 import MerchantSettings from "./pages/MerchantSettings";
 import NotFound from "./pages/NotFound";
 import Privacy from "./pages/Privacy";
+import Landing from "./pages/Landing";
 import DebugTraceWrapper from "@/components/debug/DebugTraceWrapper";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/landing" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/merchant" element={<MerchantDashboard />} />
               <Route path="/merchant/settings" element={<MerchantSettings />} />

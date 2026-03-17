@@ -2,8 +2,7 @@
  * Debug / Trace API — contract §7.
  */
 import type { TraceResponse } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 function mapAgentTraceToTraceResponse(trace: {
   request_id: string;
@@ -32,7 +31,7 @@ function mapAgentTraceToTraceResponse(trace: {
 export async function getTrace(
   traceId: string
 ): Promise<TraceResponse> {
-  const res = await fetch(`${BASE}/requests/${traceId}/trace`);
+  const res = await fetch(`${API_BASE}/requests/${traceId}/trace`);
   if (!res.ok) throw new Error(`GET /requests/${traceId}/trace failed: ${res.status}`);
   const data = await res.json();
   return mapAgentTraceToTraceResponse(data);

@@ -15,6 +15,7 @@ import type { PlaceSummary, LatLng } from "@/types";
 import { createSearchRequest } from "@/services/api";
 import { sortByPreferences } from "@/lib/preferenceScoring";
 import type { UserPreferences } from "@/components/onboarding/OnboardingSurvey";
+import { getExplorePlaces, getDealForPlaceId, getQueueLevelForPlaceId } from "@/data/providers";
 
 /** Backend POST stream event (progress / result / error) */
 type StreamEvent =
@@ -66,132 +67,73 @@ function firstIncompleteStage(stepDurations: (number | undefined)[]): PipelineSt
 }
 
 // ── Mock 数据（后端未就绪时使用）──
-const MOCK_PLACES: PlaceSummary[] = [
-  {
-    place_id: "p1",
-    name: "The Ground Brew",
-    address: "12 Market Street, Downtown",
-    distance_km: 0.2,
-    price_level: "$10–20",
-    rating: 4.9,
-    rating_count: 2341,
-    recommendation_score: 0.95,
-    status: "open_now",
-    queue_status: "low",
-    flash_deal: {
-      title: "Espresso Happy Hour",
-      discount: "-40%",
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-      remaining: 12,
-    },
-    transit: {
-      duration_minutes: 3,
-      transport_types: ["walk"],
-      summary: "3 min walk",
-    },
-    reason_tags: ["Minimalist design", "Strong espresso"],
-    one_sentence_recommendation: "Best espresso within walking distance",
-  },
-  {
-    place_id: "p2",
-    name: "Komorebi Tables",
-    address: "88 Oak Avenue, Midtown",
-    distance_km: 0.5,
-    price_level: "$20–40",
-    rating: 4.7,
-    rating_count: 1890,
-    recommendation_score: 0.91,
-    status: "closing_soon",
-    queue_status: "medium",
-    transit: {
-      duration_minutes: 7,
-      transport_types: ["tram"],
-      summary: "7 min — Tram 4",
-    },
-    reason_tags: ["High-speed WiFi", "Quiet environment"],
-    one_sentence_recommendation: "Perfect for focused work sessions",
-  },
-  {
-    place_id: "p3",
-    name: "Velvet Crumb",
-    address: "45 Elm Street, West End",
-    distance_km: 0.8,
-    price_level: "$5–15",
-    rating: 4.8,
-    rating_count: 3102,
-    recommendation_score: 0.88,
-    status: "open_now",
-    queue_status: "busy",
-    flash_deal: {
-      title: "Buy 2 Get 1 Free",
-      discount: "3 for 2",
-      expires_at: new Date(Date.now() + 1800000).toISOString(),
-      remaining: 5,
-    },
-    transit: {
-      duration_minutes: 10,
-      transport_types: ["bus"],
-      summary: "10 min — Bus 33",
-    },
-    reason_tags: ["Artisanal sourdough", "Trending"],
-    one_sentence_recommendation: "Trending bakery with artisan bread",
-  },
-  {
-    place_id: "p4",
-    name: "Origin Roast",
-    address: "200 Pine Road, Riverside",
-    distance_km: 0.2,
-    price_level: "CHF 15–25",
-    rating: 4.6,
-    rating_count: 876,
-    recommendation_score: 0.84,
-    status: "open_now",
-    queue_status: "low",
-    transit: {
-      duration_minutes: 4,
-      transport_types: ["walk"],
-      summary: "4 min walk",
-    },
-    reason_tags: ["Near you", "Single origin"],
-    one_sentence_recommendation: "Closest single-origin roaster",
-  },
-  {
-    place_id: "p5",
-    name: "The Sage Bistro",
-    address: "Gastronomy Park, Central",
-    distance_km: 1.5,
-    price_level: "CHF 60–90",
-    rating: 4.8,
-    rating_count: 212,
-    recommendation_score: 0.79,
-    status: "open_now",
-    transit: {
-      duration_minutes: 14,
-      transport_types: ["tram", "bus"],
-      summary: "14 min — Tram 4 → Bus 33",
-    },
-    reason_tags: ["Farm-to-table", "Date night"],
-    one_sentence_recommendation: "Top farm-to-table for special occasions",
-  },
-  {
-    place_id: "p6",
-    name: "Blue Bottle Coffee",
-    address: "299 Copper Lane, Uptown",
-    distance_km: 3.0,
-    price_level: "$40–60",
-    rating: 4.3,
-    rating_count: 654,
-    recommendation_score: 0.72,
-    status: "closed",
-    transit: {
-      duration_minutes: 25,
-      transport_types: ["tram"],
-      summary: "25 min — Tram 11",
-    },
-    reason_tags: ["Japanese minimal", "Pour-over"],
-    one_sentence_recommendation: "Premium Japanese-style pour-over",
-  },
-];
+function buildMockPlacesFromSeed(count = 6): PlaceSummary[] {
+  const seed = getExplorePlaces().slice(0, count);
+  const deals = [
+    { title: "Lunch special", discount: "-20%" },
+    { title: "Happy hour", discount: "2 for 1" },
+    { title: "First visit", discount: "-15%" },
+    { title: "Early bird", discount: "-25%" },
+  ];
+  const transitTemplates = [
+    { duration_minutes: 4, transport_types: ["walk" as const], summary: "4 min walk" },
+    { duration_minutes: 9, transport_types: ["tram" as const], summary: "9 min — Tram" },
+    { duration_minutes: 12, transport_types: ["bus" as const], summary: "12 min — Bus" },
+  ];
+
+  return seed.map((p, idx) => {
+    const deal = deals[idx % deals.length];
+    const transit = transitTemplates[idx % transitTemplates.length];
+    const distance_km = 0.2 + idx * 0.35;
+    const recommendation_score = Math.max(0.65, 0.95 - idx * 0.04);
+
+    return {
+      place_id: p.id,
+      name: p.name,
+      address: p.address,
+      distance_km,
+      price_level: p.priceLevel ?? "",
+      rating: p.rating,
+      rating_count: p.ratingCount ?? 0,
+      recommendation_score,
+      status: "open_now",
+      transit,
+      reason_tags: [p.category, "From seed dataset"],
+      one_sentence_recommendation: "Seed fallback recommendation (backend offline).",
+      flash_deal: idx % 2 === 0
+        ? {
+            title: deal.title,
+            discount: deal.discount,
+            expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            remaining: 3 + (idx % 7),
+          }
+        : undefined,
+      queue_status: idx % 3 === 0 ? "low" : idx % 3 === 1 ? "medium" : "busy",
+    };
+  });
+}
+
+const MOCK_PLACES: PlaceSummary[] = buildMockPlacesFromSeed(6);
+
+/**
+ * Enrich live backend results with seed deal/queue data so PlaceCards always
+ * show the same default badges whether the backend is online or offline.
+ */
+function enrichWithSeedDefaults(places: PlaceSummary[]): PlaceSummary[] {
+  return places.map((p) => {
+    if (p.flash_deal != null && p.queue_status != null) return p;
+    const enriched = { ...p };
+    if (!enriched.flash_deal) {
+      const deal = getDealForPlaceId(p.place_id);
+      if (deal) enriched.flash_deal = deal;
+    }
+    if (!enriched.queue_status) {
+      const level = getQueueLevelForPlaceId(p.place_id);
+      if (level) enriched.queue_status = level;
+    }
+    return enriched;
+  });
+}
 
 /** SSE pipeline stage for UI progress display */
 export type PipelineStage =
@@ -384,7 +326,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
                 setRequestId(req?.id ?? null);
                 setAgentReply(event.agent_reply?.trim() || null);
                 setResults(
-                  [...list].sort(
+                  enrichWithSeedDefaults([...list]).sort(
                     (a, b) =>
                       (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
                   )
@@ -406,7 +348,7 @@ export function useSearchStream(userPreferences?: UserPreferences | null) {
           setRequestId(data.request?.id ?? null);
           setAgentReply((data.agent_reply as string | undefined)?.trim() || null);
           setResults(
-            (data.results || []).sort(
+            enrichWithSeedDefaults(data.results || []).sort(
               (a: PlaceSummary, b: PlaceSummary) =>
                 (b.recommendation_score ?? 0) - (a.recommendation_score ?? 0)
             )

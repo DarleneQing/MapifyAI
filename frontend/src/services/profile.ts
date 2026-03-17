@@ -6,8 +6,7 @@ import type {
   ProfileResponse,
   ColdStartSurveyPayload,
 } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 function mapPreferencesToProfileResponse(data: {
   id?: string;
@@ -56,7 +55,7 @@ export async function submitColdStartSurvey(
 }
 
 export async function getProfile(): Promise<ProfileResponse> {
-  const res = await fetch(`${BASE}/users/me`);
+  const res = await fetch(`${API_BASE}/users/me`);
   if (!res.ok) throw new Error(`GET /users/me failed: ${res.status}`);
   const data = await res.json();
   return mapPreferencesToProfileResponse(data);
@@ -89,7 +88,7 @@ export async function updateProfile(
 export async function updatePreferences(
   prefs: UserPreferences
 ): Promise<ProfileResponse> {
-  const res = await fetch(`${BASE}/users/me/preferences`, {
+  const res = await fetch(`${API_BASE}/users/me/preferences`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(prefs),

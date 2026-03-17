@@ -2,8 +2,7 @@
  * Places API — contract §4.
  */
 import type { PlaceDetailResponse, PlaceReviewsPage } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 export async function getPlaceDetail(
   placeId: string,
@@ -15,7 +14,7 @@ export async function getPlaceDetail(
   if (options?.ratingMode) params.set("rating_mode", options.ratingMode);
   const qs = params.toString();
   const suffix = qs ? `?${qs}` : "";
-  const res = await fetch(`${BASE}/places/${placeId}${suffix}`);
+  const res = await fetch(`${API_BASE}/places/${placeId}${suffix}`);
   if (!res.ok) throw new Error(`GET /places/${placeId} failed: ${res.status}`);
   return res.json();
 }
@@ -27,7 +26,7 @@ export async function getPlaceReviews(
   sort: "newest" | "highest_rating" | "lowest_rating" = "newest"
 ): Promise<PlaceReviewsPage> {
   const res = await fetch(
-    `${BASE}/places/${placeId}/reviews?page=${page}&page_size=${pageSize}&sort=${sort}`
+    `${API_BASE}/places/${placeId}/reviews?page=${page}&page_size=${pageSize}&sort=${sort}`
   );
   if (!res.ok) throw new Error(`GET /places/${placeId}/reviews failed: ${res.status}`);
   return res.json();

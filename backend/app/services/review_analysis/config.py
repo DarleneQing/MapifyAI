@@ -26,7 +26,7 @@ SKIP_EMPTY_TEXT_FOR_SUMMARIZATION_DEFAULT: bool = True
 # ---------------------------------------------------------------------------
 
 # Maximum number of reviews that the Apify actor should fetch
-MAX_REVIEWS_DEFAULT: int = 50
+MAX_REVIEWS_DEFAULT: int = 40
 
 # Relative time range for reviews, passed through to the scraper
 REVIEWS_START_DATE_DEFAULT: str = "1 year"

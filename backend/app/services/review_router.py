@@ -13,6 +13,7 @@ All public outputs are normalized to this schema:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Literal
 
 from app.services.review_analysis.service import analyze_and_summarize_reviews
@@ -20,6 +21,11 @@ from app.services.reviews import summarise_providers
 
 ReviewMode = Literal["simple", "advanced", "fallback"]
 NormalizedReviewSummary = dict[str, str | list[str]]
+
+# Apify account has an 8 192 MB memory cap.  The reviews scraper uses ~1 024 MB
+# per run and the initial crawl actor uses ~4 096 MB.  Cap concurrent review
+# actor runs so we never exhaust the quota and block the crawl step.
+_MAX_CONCURRENT_REVIEW_ACTORS = 3
 
 
 def route_review_summaries(
@@ -66,32 +72,37 @@ def _route_simple(providers: list[dict]) -> list[dict]:
 
 
 def _route_advanced(providers: list[dict]) -> list[dict]:
-    """Use the advanced review pipeline one provider at a time."""
-    summaries: list[dict] = []
-    for provider in providers:
-        summaries.append(_summarize_provider_advanced(provider))
-    return summaries
+    """Use the advanced review pipeline for all providers concurrently."""
+    workers = min(len(providers), _MAX_CONCURRENT_REVIEW_ACTORS)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_summarize_provider_advanced, p): i for i, p in enumerate(providers)}
+        results: list[dict] = [{}] * len(providers)
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+    return results
 
 
 def _route_fallback(providers: list[dict]) -> list[dict]:
-    """Try advanced first, then fall back to simple per provider on failure."""
-    summaries: list[dict] = []
-    for provider in providers:
+    """Try advanced first, then fall back to simple per provider on failure — concurrently."""
+    def _summarize_one(provider: dict) -> dict:
         advanced_summary = _try_summarize_provider_advanced(provider)
         if advanced_summary is not None:
-            summaries.append(advanced_summary)
-            continue
-
+            return advanced_summary
         try:
             simple_summary = summarise_providers([provider])
             if simple_summary:
-                summaries.append(_normalize_summary_item(simple_summary[0], provider))
-                continue
+                return _normalize_summary_item(simple_summary[0], provider)
         except Exception:
             pass
+        return _empty_summary(provider)
 
-        summaries.append(_empty_summary(provider))
-    return summaries
+    workers = min(len(providers), _MAX_CONCURRENT_REVIEW_ACTORS)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_summarize_one, p): i for i, p in enumerate(providers)}
+        results: list[dict] = [{}] * len(providers)
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+    return results
 
 
 def _summarize_provider_advanced(provider: dict) -> dict:

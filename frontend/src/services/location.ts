@@ -1,8 +1,7 @@
 /**
  * Device location API — contract §9.
  */
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 export interface DeviceLocationPayload {
   lat: number;
@@ -24,7 +23,7 @@ export async function putDeviceLocation(
   payload: DeviceLocationPayload
 ): Promise<DeviceLocation> {
   const res = await fetch(
-    `${BASE}/location/current?device_id=${encodeURIComponent(deviceId)}`,
+    `${API_BASE}/location/current?device_id=${encodeURIComponent(deviceId)}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -39,7 +38,7 @@ export async function getDeviceLocation(
   deviceId: string
 ): Promise<DeviceLocation> {
   const res = await fetch(
-    `${BASE}/location/current?device_id=${encodeURIComponent(deviceId)}`
+    `${API_BASE}/location/current?device_id=${encodeURIComponent(deviceId)}`
   );
   if (!res.ok) throw new Error(`GET /location/current failed: ${res.status}`);
   return res.json();

@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     server: {
-      host: "::",
+      host: true, // listen on all interfaces (0.0.0.0 + ::) for LAN access e.g. from phone
       port: 8080,
       hmr: {
         overlay: false,

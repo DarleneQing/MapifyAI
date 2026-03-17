@@ -23,6 +23,9 @@ export interface ZurichProvider {
 
 const RAW = zurichProvidersJson as ZurichProvider[];
 
+// Demo override: force all seed-derived places to show Open in UI.
+const SEED_FORCE_OPEN = true;
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 function getTodayKey(): (typeof DAY_KEYS)[number] {
@@ -37,6 +40,7 @@ function parseTime(s: string): number {
 
 /** Compute open_now | closing_soon | closed from opening_hours. */
 function computeStatus(oh: Record<string, string | null> | undefined): "open_now" | "closing_soon" | "closed" {
+  if (SEED_FORCE_OPEN) return "open_now";
   if (!oh) return "open_now";
   const today = getTodayKey();
   const range = oh[today];
@@ -134,6 +138,23 @@ export function getSeedStoresForNotificationDeals(count = 6): { id: string; name
   return RAW.slice(0, count).map((p) => ({ id: p.id, name: p.name, category: p.category }));
 }
 
+/** Coffee-focused seed stores for chat suggestions (id, name, rating, category, address). */
+export function getSeedCoffeeSuggestions(
+  count = 3
+): { id: string; name: string; rating: number; category: string; address: string }[] {
+  const candidates = RAW.filter((p) => {
+    const cat = p.category.toLowerCase();
+    return cat.includes("cafe") || cat.includes("coffee");
+  });
+  return candidates.slice(0, count).map((p) => ({
+    id: p.id,
+    name: p.name,
+    rating: p.rating,
+    category: p.category,
+    address: p.address,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Place detail from provider (for PlaceDetail page when API has no data)
 // ---------------------------------------------------------------------------
@@ -141,12 +162,12 @@ function openingHoursToday(oh: Record<string, string | null> | undefined): Place
   if (!oh) return null;
   const today = getTodayKey();
   const range = oh[today];
-  if (!range) return { today_open: "—", today_close: "—", is_open_now: false };
+  if (!range) return { today_open: "—", today_close: "—", is_open_now: SEED_FORCE_OPEN ? true : false };
   const [openStr, closeStr] = range.split("-").map((s) => s?.trim() ?? "");
   return {
     today_open: openStr || "—",
     today_close: closeStr || "—",
-    is_open_now: computeStatus(oh) === "open_now",
+    is_open_now: SEED_FORCE_OPEN ? true : computeStatus(oh) === "open_now",
   };
 }
 
@@ -302,6 +323,18 @@ export function getOneSavedPerCategory(): SavedPlaceFromSeed[] {
 
 const SAVED_CATEGORY_ORDER = ["restaurant", "cafe", "bar", "haircut", "massage", "dentist", "repair", "general"] as const;
 const PER_CATEGORY = 4;
+
+/** Queue-status map for seed places (p001–p010, p081–p082). Matches useQueueStatus MOCK_QUEUE_DATA. */
+const QUEUE_LEVEL_MAP: Record<string, "low" | "medium" | "busy"> = {
+  p001: "low", p002: "medium", p003: "busy", p004: "low", p005: "medium",
+  p006: "busy", p007: "low", p008: "medium", p009: "busy", p010: "low",
+  p081: "medium", p082: "busy",
+};
+
+/** Queue level for a place id — only for seed queue stores (p001–p010, p081–p082). */
+export function getQueueLevelForPlaceId(placeId: string): "low" | "medium" | "busy" | null {
+  return QUEUE_LEVEL_MAP[placeId] ?? null;
+}
 
 /** Place IDs that have (mock) discounts only — no overlap with queue (p001–p010, p081–p082). */
 const DISCOUNT_PLACE_IDS = [

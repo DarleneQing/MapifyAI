@@ -14,6 +14,7 @@ export default {
   	},
   	extend: {
   		colors: {
+  			star: 'hsl(var(--star))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
@@ -64,6 +65,10 @@ export default {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		keyframes: {
+  			'pulse-glow': {
+  				'0%, 100%': { opacity: '0.4' },
+  				'50%': { opacity: '1' }
+  			},
   			'accordion-down': {
   				from: {
   					height: '0'
@@ -108,6 +113,7 @@ export default {
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
   			'pulse-warm': 'pulse-warm 2s ease-in-out infinite',
   			'slide-up': 'slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
   			'fade-in': 'fade-in 0.3s ease-out'

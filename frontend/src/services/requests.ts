@@ -8,8 +8,7 @@ import type {
   RequestWithResults,
   RequestSseEvent,
 } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 export async function createSearchRequest(
   query: string,
@@ -29,7 +28,7 @@ export async function createSearchRequest(
     ...(options?.preferences ? { preferences: options.preferences } : {}),
   };
 
-  return fetch(`${BASE}/requests/?stream=${stream}`, {
+  return fetch(`${API_BASE}/requests/?stream=${stream}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -43,7 +42,7 @@ export async function createSearchRequest(
 export async function getRequest(
   requestId: string
 ): Promise<RequestWithResults> {
-  const res = await fetch(`${BASE}/requests/${requestId}`);
+  const res = await fetch(`${API_BASE}/requests/${requestId}`);
   if (!res.ok) throw new Error(`GET /requests/${requestId} failed: ${res.status}`);
   return res.json();
 }

@@ -199,9 +199,20 @@ Constraints: {json.dumps(req.get("constraints", {}))}
 Top candidate places with scores and reviews:
 {json.dumps(places_info, indent=2, ensure_ascii=False)}
 
-For each place write ONE concise sentence (max 20 words) explaining why it suits
-this specific user request. Focus on the most relevant factor: price, proximity,
-rating, or availability.
+For each place write ONE concise sentence (max 20 words) that adds non-redundant insight.
+
+Do NOT repeat numeric facts already shown in UI, including:
+- rating score
+- distance / km
+- price range / CHF
+- transit minutes
+
+Prefer qualitative value that complements the card:
+- fit to user intent or constraints
+- atmosphere / style / specialty
+- practical suitability (quiet, quick meal, group-friendly, etc.)
+
+Avoid generic wording and avoid restating the same pattern across places.
 
 Return a JSON object:
 {{
@@ -488,7 +499,7 @@ def _build_initial_state(
     elif preferences is None:
         prefs_dict = {
             "weight_price": 0.33,
-            "weight_travel": 0.33,
+            "weight_distance": 0.33,
             "weight_rating": 0.34,
         }
     else:
