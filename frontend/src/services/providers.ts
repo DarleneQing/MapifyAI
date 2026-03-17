@@ -2,8 +2,7 @@
  * Providers API.
  */
 import type { Provider } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 export async function listProviders(options?: {
   category?: string;
@@ -18,13 +17,13 @@ export async function listProviders(options?: {
   if (options?.radius_km != null) params.set("radius_km", String(options.radius_km));
 
   const qs = params.toString() ? `?${params.toString()}` : "";
-  const res = await fetch(`${BASE}/providers/${qs}`);
+  const res = await fetch(`${API_BASE}/providers/${qs}`);
   if (!res.ok) throw new Error(`GET /providers failed: ${res.status}`);
   return res.json();
 }
 
 export async function getProvider(providerId: string): Promise<Provider> {
-  const res = await fetch(`${BASE}/providers/${providerId}`);
+  const res = await fetch(`${API_BASE}/providers/${providerId}`);
   if (!res.ok) throw new Error(`GET /providers/${providerId} failed: ${res.status}`);
   return res.json();
 }

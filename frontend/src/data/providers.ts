@@ -134,6 +134,23 @@ export function getSeedStoresForNotificationDeals(count = 6): { id: string; name
   return RAW.slice(0, count).map((p) => ({ id: p.id, name: p.name, category: p.category }));
 }
 
+/** Coffee-focused seed stores for chat suggestions (id, name, rating, category, address). */
+export function getSeedCoffeeSuggestions(
+  count = 3
+): { id: string; name: string; rating: number; category: string; address: string }[] {
+  const candidates = RAW.filter((p) => {
+    const cat = p.category.toLowerCase();
+    return cat.includes("cafe") || cat.includes("coffee");
+  });
+  return candidates.slice(0, count).map((p) => ({
+    id: p.id,
+    name: p.name,
+    rating: p.rating,
+    category: p.category,
+    address: p.address,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Place detail from provider (for PlaceDetail page when API has no data)
 // ---------------------------------------------------------------------------

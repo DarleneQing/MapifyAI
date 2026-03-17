@@ -2,8 +2,7 @@
  * Privacy meta API — contract §8.
  */
 import type { PrivacyMeta } from "@/types";
-
-const BASE = "/api";
+import { API_BASE } from "./config";
 
 const FALLBACK_PRIVACY_META: PrivacyMeta = {
   permissions: [
@@ -19,7 +18,7 @@ const FALLBACK_PRIVACY_META: PrivacyMeta = {
 
 export async function getPrivacyMeta(): Promise<PrivacyMeta> {
   try {
-    const res = await fetch(`${BASE}/meta/privacy`);
+    const res = await fetch(`${API_BASE}/meta/privacy`);
     if (!res.ok) return FALLBACK_PRIVACY_META;
     return res.json();
   } catch {
