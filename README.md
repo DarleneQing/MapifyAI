@@ -71,6 +71,10 @@ The system consists of:
 - a FastAPI + LangGraph backend for multi-agent orchestration  
 - external services (LLM, Google Maps via Apify, transport APIs)  
 
+Workflow as following:
+
+![workflow](doc/images/workflow.png)
+
 ---
 
 ## Limitations
