@@ -77,6 +77,30 @@ Workflow as following:
 
 ---
 
+## Quick Start
+
+**Backend**
+```bash
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # fill in OPENAI_API_KEY and APIFY_API_TOKEN
+uvicorn app.main:app --reload
+```
+API at `http://localhost:8000` · Swagger UI at `http://localhost:8000/docs`
+
+**Frontend**
+```bash
+cd frontend
+npm install
+npm run dev
+```
+App at `http://localhost:3000`
+
+See [`backend/README.md`](backend/README.md) for full environment variable reference and pipeline details.
+
+---
+
 ## Limitations
 
 This is a hackathon prototype:
@@ -94,11 +118,15 @@ This is a hackathon prototype:
 - Improved retrieval beyond seed data  
 - Unified streaming architecture  
 
----
-
 ## Contributors
 
 - Deqing Song
 - Qing Dai
 - Yuqing Huang
 - Yuan Yu
+
+---
+
+## License
+
+MIT — built at [GenAI Zurich Hackathon 2026](https://zurich.hack.ai).
