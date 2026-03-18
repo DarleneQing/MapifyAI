@@ -15,7 +15,14 @@ def get_trace(request_id: str) -> dict:
 
 
 def store_trace(request_id: str, trace: dict) -> None:
-    """Store trace for request_id. Used by orchestrator/pipeline."""
+    """Store trace for request_id. Computes total_duration_ms/s and adds duration_s per step."""
+    steps = trace.get("steps") or []
+    for step in steps:
+        ms = step.get("duration_ms") or 0
+        step["duration_s"] = round(ms / 1000, 2)
+    total_ms = sum(s.get("duration_ms") or 0 for s in steps)
+    trace["total_duration_ms"] = total_ms
+    trace["total_duration_s"] = round(total_ms / 1000, 2)
     _traces[request_id] = trace
 
 

@@ -2,7 +2,7 @@
 
 > A multi-agent city assistant that turns natural-language intent into personalized, explainable local recommendations.
 
-🌐 [Website](https://mapify-ai-rose.vercel.app/landing) · 🎮 [Demo](https://mapify-ai-rose.vercel.app/) · 🎥 Video
+🌐 [Website](https://mapify-ai-rose.vercel.app/landing) · 🎮 [Demo](https://mapify-ai-rose.vercel.app/) · 🎥 [Video](https://youtube.com/shorts/DBuaAEqDTjs?feature=share)
 
 ![homepage](doc/images/homepage.png)
 
