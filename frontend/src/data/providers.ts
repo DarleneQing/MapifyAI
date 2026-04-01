@@ -297,6 +297,38 @@ const MOCK_DEALS: Array<{ title: string; discount: string; expires_at: string; r
   { title: "Parking included", discount: "Free 2h parking", expires_at: "Ongoing", remaining: 10 },
 ];
 
+/** The seven specific default saved places shown on first launch. */
+const DEFAULT_SAVED_NAMES = [
+  "Afghan Anar",
+  "Restaurant Rosengarten",
+  "Elements Thai Spa Zürich",
+  "Kafihüsli",
+  "paui's coiffeur",
+  "Rakete Bar",
+  "Reuan Gluay Maai Massage Krankenkassen anerkannt",
+] as const;
+
+export function getDefaultSavedPlaces(): SavedPlaceFromSeed[] {
+  return DEFAULT_SAVED_NAMES.map((targetName) => {
+    const p = RAW.find((x) => x.name.trim() === targetName);
+    if (!p) return null;
+    const hasDeal = new Set(DISCOUNT_PLACE_IDS).has(p.id);
+    const dealIdx = hasDeal ? DISCOUNT_PLACE_IDS.indexOf(p.id) : -1;
+    return {
+      id: p.id,
+      name: p.name,
+      rating: p.rating,
+      category: p.category,
+      address: p.address,
+      priceLevel: priceRangeToLevel(p.price_range),
+      status: computeStatus(p.opening_hours),
+      tags: [p.category],
+      savedAt: "Saved",
+      flashDeal: dealIdx >= 0 ? MOCK_DEALS[dealIdx % MOCK_DEALS.length] : undefined,
+    } satisfies SavedPlaceFromSeed;
+  }).filter((p): p is SavedPlaceFromSeed => p !== null);
+}
+
 /** One place per category from seed, for default Saved tab list. */
 export function getOneSavedPerCategory(): SavedPlaceFromSeed[] {
   const order = ["restaurant", "cafe", "bar", "haircut", "massage", "dentist", "repair", "general"];

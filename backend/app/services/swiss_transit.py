@@ -21,8 +21,13 @@ from app.services.geo import haversine_km
 logger = logging.getLogger(__name__)
 
 OPENDATA_BASE_URL = "https://transport.opendata.ch/v1"
-HTTP_TIMEOUT_SECONDS = 10
+HTTP_TIMEOUT_SECONDS = 3   # fail fast — haversine fallback takes over immediately
 HAVERSINE_FALLBACK_SPEED_KMH = 20.0
+
+# Circuit breaker: once a ConnectTimeout or ConnectError is observed, skip all
+# further API attempts within this process lifetime and fall back to haversine.
+# Prevents N*timeout seconds of blocking when the API is unreachable.
+_api_reachable: bool = True
 
 CATEGORY_TO_MODE = {
     "s": "train",
@@ -128,6 +133,10 @@ def find_nearest_station(lat: float, lng: float) -> dict | None:
     coordinate look-ups, so the response may contain addresses and POIs
     whose ``id`` is None.  We filter those out ourselves.
     """
+    global _api_reachable
+    if not _api_reachable:
+        return None
+
     try:
         resp = httpx.get(
             f"{OPENDATA_BASE_URL}/locations",
@@ -140,6 +149,13 @@ def find_nearest_station(lat: float, lng: float) -> dict | None:
         for s in stations:
             if s.get("id"):
                 return {"id": s["id"], "name": s.get("name", "")}
+        return None
+    except (httpx.ConnectTimeout, httpx.ConnectError) as exc:
+        logger.warning(
+            "transport.opendata.ch unreachable (%.4f, %.4f) — disabling API for this process: %s",
+            lat, lng, exc,
+        )
+        _api_reachable = False
         return None
     except Exception:
         logger.warning("Failed to find nearest station for (%.4f, %.4f)", lat, lng, exc_info=True)
@@ -158,6 +174,9 @@ def _query_opendata_api(
     departure_time: datetime,
 ) -> TransitResult | None:
     """Query transport.opendata.ch GET /v1/connections via station lookup."""
+    if not _api_reachable:
+        return None
+
     try:
         origin_station = find_nearest_station(origin_lat, origin_lng)
         dest_station = find_nearest_station(dest_lat, dest_lng)

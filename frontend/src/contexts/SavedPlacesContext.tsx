@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { getFourSavedPerCategory } from "@/data/providers";
+import { getDefaultSavedPlaces } from "@/data/providers";
 
 /** Queue snapshot for display on Saved tab when live lookup by id is not available. */
 export interface SavedPlaceQueueSnapshot {
@@ -37,17 +37,30 @@ interface SavedPlacesContextValue {
 
 const SavedPlacesContext = createContext<SavedPlacesContextValue | null>(null);
 
-// Four places per category from Zurich seed, with mock discounts on first two per category
-const DEFAULT_SAVED: SavedPlace[] = getFourSavedPerCategory().map((p) => ({
+// Seven specific default places shown on first launch (2 restaurants, 1 café, 1 bar, 1 haircut, 2 massage)
+const DEFAULT_SAVED: SavedPlace[] = getDefaultSavedPlaces().map((p) => ({
   ...p,
   status: "open_now",
 }));
 
-const OLD_MOCK_NAMES = new Set(["The Sage Bistro", "The Ground Brew", "Komorebi Tables", "Velvet Crumb", "Origin Roast", "Blue Bottle Coffee"]);
+const OLD_MOCK_NAMES = new Set([
+  // Very first generation of mock data
+  "The Sage Bistro", "The Ground Brew", "Komorebi Tables", "Velvet Crumb", "Origin Roast", "Blue Bottle Coffee",
+]);
+
+// Names that were auto-seeded via getFourSavedPerCategory (many items, not a real user list)
+const SEED_DEFAULT_NAMES = new Set(
+  getDefaultSavedPlaces().map((p) => p.name)
+);
 
 function isOldMockSavedList(places: SavedPlace[]): boolean {
   if (!places.length) return false;
-  return places.every((p) => OLD_MOCK_NAMES.has(p.name));
+  // Old generation of mock names → reset
+  if (places.every((p) => OLD_MOCK_NAMES.has(p.name))) return true;
+  // Old large auto-seed (>3 items) where every item came from the seed dataset
+  // but none are from the current 3-place default → reset to new default
+  if (places.length > SEED_DEFAULT_NAMES.size && places.every((p) => !SEED_DEFAULT_NAMES.has(p.name))) return true;
+  return false;
 }
 
 export function SavedPlacesProvider({ children }: { children: ReactNode }) {
