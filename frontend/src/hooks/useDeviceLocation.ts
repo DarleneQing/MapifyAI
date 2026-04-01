@@ -34,7 +34,7 @@ function getOrCreateDeviceId(): string {
   return id;
 }
 
-function isSecureContext(): boolean {
+function checkSecureContext(): boolean {
   return window.isSecureContext || window.location.hostname === "localhost";
 }
 
@@ -55,7 +55,14 @@ async function getLocationFromIP(): Promise<LatLng | null> {
 
 function getBrowserLocation(): Promise<LatLng | null> {
   return new Promise((resolve) => {
-    if (!navigator.geolocation || !isSecureContext()) {
+    if (!navigator.geolocation) {
+      console.warn("[Geolocation] navigator.geolocation not available");
+      resolve(null);
+      return;
+    }
+
+    if (!checkSecureContext()) {
+      console.warn("[Geolocation] Not a secure context — skipping browser geolocation");
       resolve(null);
       return;
     }
@@ -65,10 +72,16 @@ function getBrowserLocation(): Promise<LatLng | null> {
         console.info("[Geolocation] Browser location acquired");
         resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
-      () => {
+      (err) => {
+        const reasons: Record<number, string> = {
+          1: "PERMISSION_DENIED",
+          2: "POSITION_UNAVAILABLE",
+          3: "TIMEOUT",
+        };
+        console.warn(`[Geolocation] Browser geolocation failed: ${reasons[err.code] ?? "UNKNOWN"} — ${err.message}`);
         resolve(null);
       },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
     );
   });
 }
