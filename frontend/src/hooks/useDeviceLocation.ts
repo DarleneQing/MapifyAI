@@ -4,8 +4,8 @@ import { putDeviceLocation } from "@/services/api";
 
 const DEVICE_ID_KEY = "localbid_device_id";
 
-// Default location: Bellevue, WA
-const DEFAULT_LOCATION: LatLng = { lat: 47.6101, lng: -122.2015 };
+// Default location: Bahnhof Stadelhofen, Zurich
+const DEFAULT_LOCATION: LatLng = { lat: 47.36667, lng: 8.54861 };
 
 // Module-level singleton cache - shared across all hook instances
 let cachedLocation: LatLng | null = null;
@@ -40,12 +40,12 @@ function isSecureContext(): boolean {
 
 async function getLocationFromIP(): Promise<LatLng | null> {
   try {
-    const res = await fetch("http://ip-api.com/json/?fields=status,lat,lon,city,country");
+    const res = await fetch("https://ipapi.co/json/");
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.status === "success" && typeof data.lat === "number" && typeof data.lon === "number") {
-      console.info(`[Geolocation] IP-based location: ${data.city}, ${data.country}`);
-      return { lat: data.lat, lng: data.lon };
+    if (typeof data.latitude === "number" && typeof data.longitude === "number") {
+      console.info(`[Geolocation] IP-based location: ${data.city}, ${data.country_name}`);
+      return { lat: data.latitude, lng: data.longitude };
     }
     return null;
   } catch {
@@ -105,8 +105,8 @@ async function fetchLocationOnce(): Promise<LatLng> {
       return ipLoc;
     }
 
-    // 3. Final fallback to Bellevue, WA
-    console.info("[Geolocation] Using default location (Bellevue, WA)");
+    // 3. Final fallback to Bahnhof Stadelhofen, Zurich
+    console.info("[Geolocation] Using default location (Stadelhofen, Zurich)");
     cachedLocation = DEFAULT_LOCATION;
     syncLocationToBackend(DEFAULT_LOCATION);
     return DEFAULT_LOCATION;
