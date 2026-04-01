@@ -4,14 +4,11 @@ import { putDeviceLocation } from "@/services/api";
 
 const DEVICE_ID_KEY = "localbid_device_id";
 
-// Default location: Zurich, Switzerland
-const DEFAULT_LOCATION: LatLng = { lat: 47.3769, lng: 8.5417 };
-
-// Temporary override: set to a LatLng to force this location (no browser/IP). Set to null to use normal flow.
-const TEMPORARY_OVERRIDE_LOCATION: LatLng | null = { lat: 47.36667, lng: 8.54861 }; // Stadelhofen, Zurich
+// Default location: Bellevue, WA
+const DEFAULT_LOCATION: LatLng = { lat: 47.6101, lng: -122.2015 };
 
 // Module-level singleton cache - shared across all hook instances
-let cachedLocation: LatLng | null = TEMPORARY_OVERRIDE_LOCATION;
+let cachedLocation: LatLng | null = null;
 let locationPromise: Promise<LatLng> | null = null;
 let deviceId: string | null = null;
 
@@ -56,10 +53,10 @@ async function getLocationFromIP(): Promise<LatLng | null> {
   }
 }
 
-function getBrowserLocation(): Promise<LatLng> {
+function getBrowserLocation(): Promise<LatLng | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation || !isSecureContext()) {
-      resolve(DEFAULT_LOCATION);
+      resolve(null);
       return;
     }
 
@@ -69,7 +66,7 @@ function getBrowserLocation(): Promise<LatLng> {
         resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       },
       () => {
-        resolve(DEFAULT_LOCATION);
+        resolve(null);
       },
       { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
     );
@@ -77,14 +74,6 @@ function getBrowserLocation(): Promise<LatLng> {
 }
 
 async function fetchLocationOnce(): Promise<LatLng> {
-  // Temporary override: use fixed location (no browser, no IP)
-  if (TEMPORARY_OVERRIDE_LOCATION) {
-    console.info("[Geolocation] Using temporary override: Stadelhofen");
-    cachedLocation = TEMPORARY_OVERRIDE_LOCATION;
-    syncLocationToBackend(TEMPORARY_OVERRIDE_LOCATION);
-    return TEMPORARY_OVERRIDE_LOCATION;
-  }
-
   // Return cached location if available
   if (cachedLocation) {
     return cachedLocation;
@@ -99,17 +88,15 @@ async function fetchLocationOnce(): Promise<LatLng> {
   locationPromise = (async () => {
     console.info("[Geolocation] Fetching location (one-time)...");
 
-    // Try browser geolocation first if in secure context (IP fallback disabled when override was used)
-    if (navigator.geolocation && isSecureContext()) {
-      const browserLoc = await getBrowserLocation();
-      if (browserLoc.lat !== DEFAULT_LOCATION.lat || browserLoc.lng !== DEFAULT_LOCATION.lng) {
-        cachedLocation = browserLoc;
-        syncLocationToBackend(browserLoc);
-        return browserLoc;
-      }
+    // 1. Try browser Geolocation API
+    const browserLoc = await getBrowserLocation();
+    if (browserLoc) {
+      cachedLocation = browserLoc;
+      syncLocationToBackend(browserLoc);
+      return browserLoc;
     }
 
-    // Fall back to IP geolocation
+    // 2. Fall back to IP geolocation
     console.info("[Geolocation] Trying IP-based geolocation...");
     const ipLoc = await getLocationFromIP();
     if (ipLoc) {
@@ -118,8 +105,8 @@ async function fetchLocationOnce(): Promise<LatLng> {
       return ipLoc;
     }
 
-    // Final fallback to Zurich
-    console.info("[Geolocation] Using default location (Zurich)");
+    // 3. Final fallback to Bellevue, WA
+    console.info("[Geolocation] Using default location (Bellevue, WA)");
     cachedLocation = DEFAULT_LOCATION;
     syncLocationToBackend(DEFAULT_LOCATION);
     return DEFAULT_LOCATION;
