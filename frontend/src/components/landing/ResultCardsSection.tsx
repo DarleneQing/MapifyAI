@@ -40,7 +40,7 @@ const results = [
 const ResultCardsSection = () => {
   return (
     <section className="py-14 sm:py-24 px-6">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-2xl mx-auto">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -68,7 +68,13 @@ const ResultCardsSection = () => {
               {/* Header */}
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                  <span className={`h-8 w-8 rounded-xl flex items-center justify-center font-bold text-sm ${
+                    r.rank === 1
+                      ? "bg-primary text-primary-foreground"
+                      : r.rank === 2
+                      ? "bg-foreground/15 text-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
                     #{r.rank}
                   </span>
                   <div>

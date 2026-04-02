@@ -37,7 +37,7 @@ const features = [
 const FeaturesSection = () => {
   return (
     <section className="py-14 sm:py-24 px-6">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-3xl mx-auto">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
@@ -60,7 +60,7 @@ const FeaturesSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.08, type: "spring", bounce: 0 }}
-              className="glass-surface rounded-2xl p-4"
+              className="bg-white rounded-2xl p-5 shadow-sm border border-border/40"
             >
               <f.icon className="h-5 w-5 text-primary mb-3" />
               <h3 className="text-sm font-semibold text-foreground mb-1">{f.title}</h3>

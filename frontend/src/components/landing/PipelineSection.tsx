@@ -37,7 +37,7 @@ const PipelineSection = () => {
 
   return (
     <section id="pipeline-section" className="py-14 sm:py-24 px-6">
-      <div className="max-w-lg mx-auto">
+      <div className="max-w-xl mx-auto">
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}

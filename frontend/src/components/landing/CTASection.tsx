@@ -11,7 +11,7 @@ const CTASection = () => {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        className="max-w-lg mx-auto text-center"
+        className="max-w-2xl mx-auto text-center"
       >
         <div className="glass-surface rounded-3xl p-6 sm:p-10">
           <MapPin className="h-8 w-8 sm:h-10 sm:w-10 text-primary mx-auto mb-4 sm:mb-6" />
@@ -36,9 +36,9 @@ const CTASection = () => {
       </motion.div>
 
       {/* Footer */}
-      <div className="max-w-lg mx-auto mt-10 sm:mt-16 text-center">
+      <div className="max-w-2xl mx-auto mt-10 sm:mt-16 text-center">
         <p className="text-xs text-muted-foreground">
-          © 2026 TourAgent · Built with ♥ at GenAI Zurich Hackathon 2026
+          © 2026 Mapify AI · Built with ♥ at GenAI Zurich Hackathon 2026
         </p>
       </div>
     </section>

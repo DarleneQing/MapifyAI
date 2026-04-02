@@ -37,36 +37,48 @@ const HeroSection = () => {
   }, [displayedText, isDeleting, currentPrompt]);
 
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden">
+    <section className="relative min-h-screen flex flex-col items-center justify-center px-6 overflow-hidden pt-14">
       {/* Background */}
       <div className="absolute inset-0 z-0">
         <img src={heroImage} alt="" className="w-full h-full object-cover opacity-15" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/70 to-background" />
       </div>
 
-      <div className="relative z-10 w-full max-w-lg mx-auto text-center">
-        {/* Logo & Badge */}
+      <div className="relative z-10 w-full max-w-2xl mx-auto text-center">
+        {/* Brand wordmark */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-center gap-3 mb-4 sm:mb-6"
+        >
+          <img src="/icon.png" alt="Mapify AI" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
+          <span className="text-4xl sm:text-6xl font-bold tracking-tight text-foreground">
+            Mapify <span className="text-gradient-primary">AI</span>
+          </span>
+        </motion.div>
+
+        {/* Headline & Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
           className="mb-5 sm:mb-8"
         >
-          <div className="inline-flex items-center gap-2 glass-surface rounded-full px-4 py-2 mb-5 sm:mb-8">
-            <MapPin className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium text-muted-foreground">Built at GenAI Zurich Hackathon 2026</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-bold tracking-display leading-[1.1] mb-3 sm:mb-4">
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-display leading-[1.1] mb-3 sm:mb-4">
             The city,{" "}
             <span className="text-gradient-primary">ranked</span>
-            <br />
-            for you.
+            {" "}for you.
           </h1>
 
-          <p className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-md mx-auto">
-            Stop switching apps. Mapify turns Google Maps searches into "I'm going to..." in seconds.
+          <p className="text-muted-foreground text-base sm:text-lg leading-relaxed max-w-md mx-auto mb-4">
+            Stop switching apps. Mapify AI turns Google Maps searches into "I'm going to..." in seconds.
           </p>
+
+          <div className="inline-flex items-center gap-2 glass-surface rounded-full px-4 py-2">
+            <MapPin className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium text-muted-foreground">Built at GenAI Zurich Hackathon 2026</span>
+          </div>
         </motion.div>
 
         {/* Search Input */}
